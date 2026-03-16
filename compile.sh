@@ -1,2 +1,2 @@
 #!/bin/sh
-tsc -t esnext *.ts
+tsc -t esnext index.ts

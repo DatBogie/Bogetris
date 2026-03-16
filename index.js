@@ -770,9 +770,15 @@ document.getElementById("pause-restart")?.addEventListener("click", () => {
     Game.StartGame();
 });
 document.getElementById("pause-mods")?.addEventListener("click", () => {
-    document.getElementById("mods")?.classList.toggle("active");
+    document.getElementById("mods")?.classList.add("active");
+});
+document.getElementById("mods-back")?.addEventListener("click", () => {
+    document.getElementById("mods")?.classList.remove("active");
 });
 document.getElementById("pause-settings")?.addEventListener("click", () => {
-    document.getElementById("settings")?.classList.toggle("active");
+    document.getElementById("settings")?.classList.add("active");
+});
+document.getElementById("settings-back")?.addEventListener("click", () => {
+    document.getElementById("settings")?.classList.remove("active");
 });
 export default { Enum, Game, Color, BlockData, Block, BlockInstance };

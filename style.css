@@ -156,6 +156,7 @@ input {
 input[type="number"] {
     appearance: textfield;
     width: 25px;
+    text-align: right;
 }
 
 span {

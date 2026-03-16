@@ -20,8 +20,32 @@ function focusButton() {
     });
 }
 
+function getAttr(instance:any,attr:string) : any {
+    return instance[attr];
+}
+function setAttr(instance:any,attr:string,value:any) : void {
+    instance[attr] = value;
+}
+
 export namespace Enum {
     export enum BlockShape { I, O, T, S, Z, J, L }
+    export class CustomBlockShape {
+        static get length() : number {
+            let i = 0;
+            for (const _ of Object.keys(Blocks))
+                i++;
+            return i;
+        }
+        constructor(symbol:string,block:Block) {
+            this.Symbol = symbol;
+            this.Block = block;
+            this.index = CustomBlockShape.length;
+            Blocks[this.index] = block;
+        }
+        Symbol:string;
+        Block:Block;
+        readonly index:number;
+    }
     export enum Operation { Addition, Subtraction, Multiplication, Division }
     const ops:Record<string, Operation> = { ["+"]: Operation.Addition, ["-"]: Operation.Subtraction, ["*"]: Operation.Multiplication, ["/"]: Operation.Division };
     export function OperationFromString(op:string) : Operation {
@@ -47,6 +71,8 @@ export namespace Enum {
         new Level(5,2.5),
         new Level(6,3.0)
     ]
+    export enum ThemeStyle { Dark, Light }
+    export enum UIThemeKey { olc, rosewater, flamingo, pink, mauve, red, maroon, peach, yellow, green, teal, sky, sapphire, blue, lavender, text, subtext1, subtext0, overlay2, overlay1, overlay0, surface2, surface1, surface0, base, mantle, crust, accent }
 }
 
 class Utils {
@@ -104,7 +130,156 @@ class Point {
     readonly Y:number;
 }
 
+const settingsWin = document.getElementById("settings");
+const Settings = {
+    GhostBlockOpacity: settingsWin?.querySelector(".settings-ghost-opacity")
+} as Record<string, HTMLElement|HTMLInputElement>
+function updateSettings() : void {
+    for (const [k, el] of Object.entries(Settings)) {
+        if (el instanceof HTMLInputElement) {
+            switch (el.type) {
+                case "number":
+                    el.valueAsNumber = getAttr(Game,k);
+                    break;
+                default:
+                    el.value = getAttr(Game,k);
+                    break;
+            }
+        }
+    }
+}
+
+class ColorPalette {
+    constructor(name:string,blocktheme?:Record<Enum.BlockShape|number,Color>,uitheme?:UITheme,style:Enum.ThemeStyle=Enum.ThemeStyle.Dark) {
+        this.Name = name;
+        this.BlockTheme = blocktheme;
+        this.Style = style;
+        if (uitheme?.Name === undefined || uitheme?.Style === undefined)
+            uitheme?.setPropertiesFromPalette(this);
+        this.UITheme = uitheme;
+    }
+    readonly Name:string;
+    readonly BlockTheme?:Record<Enum.BlockShape|number,Color>;
+    readonly UITheme?:UITheme;
+    readonly Style:Enum.ThemeStyle;
+}
+
+class UITheme {
+    constructor(name:string|undefined,data:Record<Enum.UIThemeKey,Color>,style?:Enum.ThemeStyle) {
+        this.name = name;
+        this.Data = data;
+        this.style = style;
+    }
+    private name?:string;
+    get Name() : string|undefined {
+        return this.name;
+    }
+    readonly Data:Record<Enum.UIThemeKey,Color>;
+    private style?:Enum.ThemeStyle;
+    get Style() : Enum.ThemeStyle|undefined {
+        return this.style;
+    }
+    setPropertiesFromPalette(palette:ColorPalette) : void {
+        this.name ??= palette.Name;
+        this.style ??= palette.Style;
+    }
+}
+
+class Color {
+    constructor(r:number, g:number, b:number, opacity:number=1.0) {
+        this._rgb = `rgba(${r},${g},${b}`;
+        this.Opacity = opacity;
+    }
+    static fromHex(hex:string) {
+        hex = hex.replace("#","");
+        const r = parseInt(hex.substring(0,2),16);
+        const g = parseInt(hex.substring(2,4),16);
+        const b = parseInt(hex.substring(4,6),16);
+        let o = 255;
+        if (hex.length > 6)
+            o = parseInt(hex.substring(6,8),16);
+        return new Color(r,g,b,o/255);
+    }
+    /*
+     * Adapted version of https://gist.github.com/mjackson/5311256 > hslToRgb()
+     */
+    static fromHSLA(h:number,s:number,l:number,a?:number) {
+        s/=100; l/=100;
+        if (s === 0) {
+            l*=255;
+            return new Color(l,l,l,a);
+        } else {
+            function hue2rgb(p:number, q:number, t:number) : number {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1/6) return p + (q - p) * 6 * t;
+                if (t < 1/2) return q;
+                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                return p;
+            }
+            let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            let p = 2 * l - q;
+            return new Color(hue2rgb(p, q, h + 1/3),hue2rgb(p, q, h),hue2rgb(p, q, h - 1/3),a);
+        }
+    }
+    private _rgb:string;
+    Opacity:number;
+    get RGBA() : string {
+        return `${this._rgb},${this.Opacity})`;
+    }
+    WithOpacity(opacity:number) : string {
+        let o = this.Opacity;
+        this.Opacity = opacity;
+        const s = this.RGBA;
+        this.Opacity = o;
+        return s;
+    }
+    toString() : string {
+        return this.RGBA;
+    }
+}
+
 class Game {
+    static ColorPalettes:ColorPalette[] = [
+        new ColorPalette("Catpuccin Macchiato",{
+            [Enum.BlockShape.I]: Color.fromHex("#91d7e3"),
+            [Enum.BlockShape.J]: Color.fromHex("#eed49f"),
+            [Enum.BlockShape.L]: Color.fromHex("#c6a0f6"),
+            [Enum.BlockShape.O]: Color.fromHex("#a6da95"),
+            [Enum.BlockShape.S]: Color.fromHex("#ed8796"),
+            [Enum.BlockShape.T]: Color.fromHex("#b7bdf8"),
+            [Enum.BlockShape.Z]: Color.fromHex("#f5a97f")
+        },new UITheme(undefined,{
+            [Enum.UIThemeKey.olc]: Color.fromHSLA(0,0,100,.25),
+            [Enum.UIThemeKey.rosewater]: Color.fromHex("#f4dbd6"),
+            [Enum.UIThemeKey.flamingo]: Color.fromHex("#f0c6c6"),
+            [Enum.UIThemeKey.pink]: Color.fromHex("#f5bde6"),
+            [Enum.UIThemeKey.mauve]: Color.fromHex("#c6a0f6"),
+            [Enum.UIThemeKey.red]: Color.fromHex("#ed8796"),
+            [Enum.UIThemeKey.maroon]: Color.fromHex("#ee99a0"),
+            [Enum.UIThemeKey.peach]: Color.fromHex("#f5a97f"),
+            [Enum.UIThemeKey.yellow]: Color.fromHex("#eed496"),
+            [Enum.UIThemeKey.green]: Color.fromHex("#a6da95"),
+            [Enum.UIThemeKey.teal]: Color.fromHex("#8bd5ca"),
+            [Enum.UIThemeKey.sky]: Color.fromHex("#91d7e3"),
+            [Enum.UIThemeKey.sapphire]: Color.fromHex("#7dc4e4"),
+            [Enum.UIThemeKey.blue]: Color.fromHex("#8aadf4"),
+            [Enum.UIThemeKey.lavender]: Color.fromHex("#b7bdf8"),
+            [Enum.UIThemeKey.text]: Color.fromHex("#cad3f5"),
+            [Enum.UIThemeKey.subtext1]: Color.fromHex("#b8c0e0"),
+            [Enum.UIThemeKey.subtext0]: Color.fromHex("#a5adcb"),
+            [Enum.UIThemeKey.overlay2]: Color.fromHex("#939ab7"),
+            [Enum.UIThemeKey.overlay1]: Color.fromHex("#8087a2"),
+            [Enum.UIThemeKey.overlay0]: Color.fromHex("#6e738d"),
+            [Enum.UIThemeKey.surface2]: Color.fromHex("#5b6078"),
+            [Enum.UIThemeKey.surface1]: Color.fromHex("#494d64"),
+            [Enum.UIThemeKey.surface0]: Color.fromHex("#363a4f"),
+            [Enum.UIThemeKey.base]: Color.fromHex("#24273a"),
+            [Enum.UIThemeKey.mantle]: Color.fromHex("#1e2030"),
+            [Enum.UIThemeKey.crust]: Color.fromHex("#181926"),
+            [Enum.UIThemeKey.accent]: Color.fromHex("#b7bdf8")
+        }),Enum.ThemeStyle.Dark)
+    ];
     static readonly PixelSize:number = 32;
     static readonly Width:number = 10;
     static readonly Height:number = 20;
@@ -309,36 +484,6 @@ class Game {
     }
 }
 
-class Color {
-    constructor(r:number, g:number, b:number, opacity:number=1.0) {
-        this._rgb = `rgba(${r},${g},${b}`;
-        this.Opacity = opacity;
-    }
-    static fromHex(hex:string) {
-        hex = hex.replace("#","");
-        const r = parseInt(hex.substring(0,2),16);
-        const g = parseInt(hex.substring(2,4),16);
-        const b = parseInt(hex.substring(4,6),16);
-        const o = parseInt(hex.substring(6,8),16);
-        return new Color(r,g,b,o/255);
-    }
-    private _rgb:string;
-    Opacity:number;
-    get RGBA() : string {
-        return `${this._rgb},${this.Opacity})`;
-    }
-    WithOpacity(opacity:number) : string {
-        let o = this.Opacity;
-        this.Opacity = opacity;
-        const s = this.RGBA;
-        this.Opacity = o;
-        return s;
-    }
-    toString() : string {
-        return this.RGBA;
-    }
-}
-
 class BlockData {
     constructor(color:Color|string=Color.fromHex("#FFFFFFFF")) {
         if (typeof color === "string") color = Color.fromHex(color+"FF");
@@ -454,13 +599,7 @@ class BlockInstance extends Block {
     }
 }
 
-const CustomBlockShape:Record<string,number> = { MinValue: 7 }
-function registerCustomBlock(name:string,blockShapes:number[][][]) {
-    CustomBlockShape[name] = CustomBlockShape.MinValue;
-    CustomBlockShape.MinValue++;
-}
-
-const Blocks = {
+const Blocks:Record<Enum.BlockShape|number,Block> = {
     [Enum.BlockShape.I]: new Block(
         [
             [
@@ -768,11 +907,17 @@ document.getElementById("pause-restart")?.addEventListener("click",()=>{
 });
 
 document.getElementById("pause-mods")?.addEventListener("click",()=>{
-    document.getElementById("mods")?.classList.toggle("active");
+    document.getElementById("mods")?.classList.add("active");
+});
+document.getElementById("mods-back")?.addEventListener("click",()=>{
+    document.getElementById("mods")?.classList.remove("active");
 });
 
 document.getElementById("pause-settings")?.addEventListener("click",()=>{
-    document.getElementById("settings")?.classList.toggle("active");
+    document.getElementById("settings")?.classList.add("active");
+});
+document.getElementById("settings-back")?.addEventListener("click",()=>{
+    document.getElementById("settings")?.classList.remove("active");
 });
 
 export default { Enum, Game, Color, BlockData, Block, BlockInstance }
