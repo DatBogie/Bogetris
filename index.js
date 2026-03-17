@@ -19,6 +19,12 @@ function focusButton() {
         return btn.focus();
     });
 }
+function getAttr(instance, attr) {
+    return instance[attr];
+}
+function setAttr(instance, attr, value) {
+    instance[attr] = value;
+}
 export var Enum;
 (function (Enum) {
     let BlockShape;
@@ -31,6 +37,24 @@ export var Enum;
         BlockShape[BlockShape["J"] = 5] = "J";
         BlockShape[BlockShape["L"] = 6] = "L";
     })(BlockShape = Enum.BlockShape || (Enum.BlockShape = {}));
+    class CustomBlockShape {
+        static get length() {
+            let i = 0;
+            for (const _ of Object.keys(Blocks))
+                i++;
+            return i;
+        }
+        constructor(symbol, block) {
+            this.Symbol = symbol;
+            this.Block = block;
+            this.index = CustomBlockShape.length;
+            Blocks[this.index] = block;
+        }
+        Symbol;
+        Block;
+        index;
+    }
+    Enum.CustomBlockShape = CustomBlockShape;
     let Operation;
     (function (Operation) {
         Operation[Operation["Addition"] = 0] = "Addition";
@@ -64,6 +88,42 @@ export var Enum;
         new Level(5, 2.5),
         new Level(6, 3.0)
     ];
+    let ThemeStyle;
+    (function (ThemeStyle) {
+        ThemeStyle[ThemeStyle["Dark"] = 0] = "Dark";
+        ThemeStyle[ThemeStyle["Light"] = 1] = "Light";
+    })(ThemeStyle = Enum.ThemeStyle || (Enum.ThemeStyle = {}));
+    let UIThemeKey;
+    (function (UIThemeKey) {
+        UIThemeKey[UIThemeKey["olc"] = 0] = "olc";
+        UIThemeKey[UIThemeKey["rosewater"] = 1] = "rosewater";
+        UIThemeKey[UIThemeKey["flamingo"] = 2] = "flamingo";
+        UIThemeKey[UIThemeKey["pink"] = 3] = "pink";
+        UIThemeKey[UIThemeKey["mauve"] = 4] = "mauve";
+        UIThemeKey[UIThemeKey["red"] = 5] = "red";
+        UIThemeKey[UIThemeKey["maroon"] = 6] = "maroon";
+        UIThemeKey[UIThemeKey["peach"] = 7] = "peach";
+        UIThemeKey[UIThemeKey["yellow"] = 8] = "yellow";
+        UIThemeKey[UIThemeKey["green"] = 9] = "green";
+        UIThemeKey[UIThemeKey["teal"] = 10] = "teal";
+        UIThemeKey[UIThemeKey["sky"] = 11] = "sky";
+        UIThemeKey[UIThemeKey["sapphire"] = 12] = "sapphire";
+        UIThemeKey[UIThemeKey["blue"] = 13] = "blue";
+        UIThemeKey[UIThemeKey["lavender"] = 14] = "lavender";
+        UIThemeKey[UIThemeKey["text"] = 15] = "text";
+        UIThemeKey[UIThemeKey["subtext1"] = 16] = "subtext1";
+        UIThemeKey[UIThemeKey["subtext0"] = 17] = "subtext0";
+        UIThemeKey[UIThemeKey["overlay2"] = 18] = "overlay2";
+        UIThemeKey[UIThemeKey["overlay1"] = 19] = "overlay1";
+        UIThemeKey[UIThemeKey["overlay0"] = 20] = "overlay0";
+        UIThemeKey[UIThemeKey["surface2"] = 21] = "surface2";
+        UIThemeKey[UIThemeKey["surface1"] = 22] = "surface1";
+        UIThemeKey[UIThemeKey["surface0"] = 23] = "surface0";
+        UIThemeKey[UIThemeKey["base"] = 24] = "base";
+        UIThemeKey[UIThemeKey["mantle"] = 25] = "mantle";
+        UIThemeKey[UIThemeKey["crust"] = 26] = "crust";
+        UIThemeKey[UIThemeKey["accent"] = 27] = "accent";
+    })(UIThemeKey = Enum.UIThemeKey || (Enum.UIThemeKey = {}));
 })(Enum || (Enum = {}));
 class Utils {
     static OverflowOperate(n0, n1, underflow, overflow, operation = Enum.Operation.Addition) {
@@ -118,12 +178,146 @@ class Point {
     X;
     Y;
 }
+class ColorPalette {
+    constructor(name, blocktheme, uitheme, style = Enum.ThemeStyle.Dark) {
+        this.Name = name;
+        this.BlockTheme = blocktheme;
+        this.Style = style;
+        if (uitheme?.Name === undefined || uitheme?.Style === undefined)
+            uitheme?.setPropertiesFromPalette(this);
+        this.UITheme = uitheme;
+    }
+    Name;
+    BlockTheme;
+    UITheme;
+    Style;
+}
+class UITheme {
+    constructor(name, data, style) {
+        this.name = name;
+        this.Data = data;
+        this.style = style;
+    }
+    name;
+    get Name() {
+        return this.name;
+    }
+    Data;
+    style;
+    get Style() {
+        return this.style;
+    }
+    setPropertiesFromPalette(palette) {
+        this.name ??= palette.Name;
+        this.style ??= palette.Style;
+    }
+}
+class Color {
+    constructor(r, g, b, opacity = 1.0) {
+        this._rgb = `rgba(${r},${g},${b}`;
+        this.Opacity = opacity;
+    }
+    static fromHex(hex) {
+        hex = hex.replace("#", "");
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        let o = 255;
+        if (hex.length > 6)
+            o = parseInt(hex.substring(6, 8), 16);
+        return new Color(r, g, b, o / 255);
+    }
+    /*
+     * Adapted version of https://gist.github.com/mjackson/5311256 > hslToRgb()
+     */
+    static fromHSLA(h, s, l, a) {
+        s /= 100;
+        l /= 100;
+        if (s === 0) {
+            l *= 255;
+            return new Color(l, l, l, a);
+        }
+        else {
+            function hue2rgb(p, q, t) {
+                if (t < 0)
+                    t += 1;
+                if (t > 1)
+                    t -= 1;
+                if (t < 1 / 6)
+                    return p + (q - p) * 6 * t;
+                if (t < 1 / 2)
+                    return q;
+                if (t < 2 / 3)
+                    return p + (q - p) * (2 / 3 - t) * 6;
+                return p;
+            }
+            let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            let p = 2 * l - q;
+            return new Color(hue2rgb(p, q, h + 1 / 3), hue2rgb(p, q, h), hue2rgb(p, q, h - 1 / 3), a);
+        }
+    }
+    _rgb;
+    Opacity;
+    get RGBA() {
+        return `${this._rgb},${this.Opacity})`;
+    }
+    WithOpacity(opacity) {
+        let o = this.Opacity;
+        this.Opacity = opacity;
+        const s = this.RGBA;
+        this.Opacity = o;
+        return s;
+    }
+    toString() {
+        return this.RGBA;
+    }
+}
 class Game {
+    static ColorPalettes = [
+        new ColorPalette("Catpuccin Macchiato", {
+            [Enum.BlockShape.I]: Color.fromHex("#91d7e3"),
+            [Enum.BlockShape.J]: Color.fromHex("#eed49f"),
+            [Enum.BlockShape.L]: Color.fromHex("#c6a0f6"),
+            [Enum.BlockShape.O]: Color.fromHex("#a6da95"),
+            [Enum.BlockShape.S]: Color.fromHex("#ed8796"),
+            [Enum.BlockShape.T]: Color.fromHex("#b7bdf8"),
+            [Enum.BlockShape.Z]: Color.fromHex("#f5a97f")
+        }, new UITheme(undefined, {
+            [Enum.UIThemeKey.olc]: Color.fromHSLA(0, 0, 100, .25),
+            [Enum.UIThemeKey.rosewater]: Color.fromHex("#f4dbd6"),
+            [Enum.UIThemeKey.flamingo]: Color.fromHex("#f0c6c6"),
+            [Enum.UIThemeKey.pink]: Color.fromHex("#f5bde6"),
+            [Enum.UIThemeKey.mauve]: Color.fromHex("#c6a0f6"),
+            [Enum.UIThemeKey.red]: Color.fromHex("#ed8796"),
+            [Enum.UIThemeKey.maroon]: Color.fromHex("#ee99a0"),
+            [Enum.UIThemeKey.peach]: Color.fromHex("#f5a97f"),
+            [Enum.UIThemeKey.yellow]: Color.fromHex("#eed496"),
+            [Enum.UIThemeKey.green]: Color.fromHex("#a6da95"),
+            [Enum.UIThemeKey.teal]: Color.fromHex("#8bd5ca"),
+            [Enum.UIThemeKey.sky]: Color.fromHex("#91d7e3"),
+            [Enum.UIThemeKey.sapphire]: Color.fromHex("#7dc4e4"),
+            [Enum.UIThemeKey.blue]: Color.fromHex("#8aadf4"),
+            [Enum.UIThemeKey.lavender]: Color.fromHex("#b7bdf8"),
+            [Enum.UIThemeKey.text]: Color.fromHex("#cad3f5"),
+            [Enum.UIThemeKey.subtext1]: Color.fromHex("#b8c0e0"),
+            [Enum.UIThemeKey.subtext0]: Color.fromHex("#a5adcb"),
+            [Enum.UIThemeKey.overlay2]: Color.fromHex("#939ab7"),
+            [Enum.UIThemeKey.overlay1]: Color.fromHex("#8087a2"),
+            [Enum.UIThemeKey.overlay0]: Color.fromHex("#6e738d"),
+            [Enum.UIThemeKey.surface2]: Color.fromHex("#5b6078"),
+            [Enum.UIThemeKey.surface1]: Color.fromHex("#494d64"),
+            [Enum.UIThemeKey.surface0]: Color.fromHex("#363a4f"),
+            [Enum.UIThemeKey.base]: Color.fromHex("#24273a"),
+            [Enum.UIThemeKey.mantle]: Color.fromHex("#1e2030"),
+            [Enum.UIThemeKey.crust]: Color.fromHex("#181926"),
+            [Enum.UIThemeKey.accent]: Color.fromHex("#b7bdf8")
+        }), Enum.ThemeStyle.Dark)
+    ];
     static PixelSize = 32;
     static Width = 10;
     static Height = 20;
     static BaseSpeedMs = 1000.0;
-    static GhostBlockOpacity = 0.65;
+    static GhostBlockOpacity = 0.25;
     static Paused = true;
     static CurrentBlock;
     static GameCanvas = new Canvas2D(document.getElementById("game"));
@@ -329,35 +523,37 @@ class Game {
         }
     }
 }
-class Color {
-    constructor(r, g, b, opacity = 1.0) {
-        this._rgb = `rgba(${r},${g},${b}`;
-        this.Opacity = opacity;
-    }
-    static fromHex(hex) {
-        hex = hex.replace("#", "");
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
-        const o = parseInt(hex.substring(6, 8), 16);
-        return new Color(r, g, b, o / 255);
-    }
-    _rgb;
-    Opacity;
-    get RGBA() {
-        return `${this._rgb},${this.Opacity})`;
-    }
-    WithOpacity(opacity) {
-        let o = this.Opacity;
-        this.Opacity = opacity;
-        const s = this.RGBA;
-        this.Opacity = o;
-        return s;
-    }
-    toString() {
-        return this.RGBA;
+function clamp(x, min, max) {
+    return Math.min(Math.max(x, min), max);
+}
+const settingsWin = document.getElementById("settings");
+const Settings = {
+    GhostBlockOpacity: settingsWin?.querySelector("#settings-ghost-opacity")
+};
+function updateSettings() {
+    for (const [k, el] of Object.entries(Settings)) {
+        if (el instanceof HTMLInputElement) {
+            switch (el.type) {
+                case "number":
+                    if (el.classList.contains("percent"))
+                        el.valueAsNumber = getAttr(Game, k) * 100;
+                    else
+                        el.valueAsNumber = getAttr(Game, k);
+                    el.addEventListener("change", () => {
+                        const min = parseFloat(el.dataset.min ?? "0");
+                        const max = parseFloat(el.dataset.max ?? "100");
+                        el.valueAsNumber = clamp(el.valueAsNumber, min, max);
+                        setAttr(Game, k, el.classList.contains("percent") ? el.valueAsNumber / max : el.valueAsNumber);
+                    });
+                    break;
+                default:
+                    el.value = getAttr(Game, k);
+                    break;
+            }
+        }
     }
 }
+updateSettings();
 class BlockData {
     constructor(color = Color.fromHex("#FFFFFFFF")) {
         if (typeof color === "string")
@@ -480,11 +676,6 @@ class BlockInstance extends Block {
         }
         return lowestPoint;
     }
-}
-const CustomBlockShape = { MinValue: 7 };
-function registerCustomBlock(name, blockShapes) {
-    CustomBlockShape[name] = CustomBlockShape.MinValue;
-    CustomBlockShape.MinValue++;
 }
 const Blocks = {
     [Enum.BlockShape.I]: new Block([

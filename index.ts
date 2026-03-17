@@ -130,25 +130,6 @@ class Point {
     readonly Y:number;
 }
 
-const settingsWin = document.getElementById("settings");
-const Settings = {
-    GhostBlockOpacity: settingsWin?.querySelector(".settings-ghost-opacity")
-} as Record<string, HTMLElement|HTMLInputElement>
-function updateSettings() : void {
-    for (const [k, el] of Object.entries(Settings)) {
-        if (el instanceof HTMLInputElement) {
-            switch (el.type) {
-                case "number":
-                    el.valueAsNumber = getAttr(Game,k);
-                    break;
-                default:
-                    el.value = getAttr(Game,k);
-                    break;
-            }
-        }
-    }
-}
-
 class ColorPalette {
     constructor(name:string,blocktheme?:Record<Enum.BlockShape|number,Color>,uitheme?:UITheme,style:Enum.ThemeStyle=Enum.ThemeStyle.Dark) {
         this.Name = name;
@@ -284,7 +265,7 @@ class Game {
     static readonly Width:number = 10;
     static readonly Height:number = 20;
     static readonly BaseSpeedMs:number = 1000.0;
-    static GhostBlockOpacity:number = 0.65;
+    static GhostBlockOpacity:number = 0.25;
     static Paused:boolean = true;
     static CurrentBlock?:BlockInstance;
     static readonly GameCanvas:Canvas2D = new Canvas2D(document.getElementById("game") as HTMLCanvasElement);
@@ -483,6 +464,39 @@ class Game {
         }
     }
 }
+
+function clamp(x:number,min:number,max:number) : number {
+    return Math.min(Math.max(x,min),max);
+}
+
+const settingsWin = document.getElementById("settings");
+const Settings = {
+    GhostBlockOpacity: settingsWin?.querySelector("#settings-ghost-opacity")
+} as Record<string, HTMLElement|HTMLInputElement>
+function updateSettings() : void {
+    for (const [k, el] of Object.entries(Settings)) {
+        if (el instanceof HTMLInputElement) {
+            switch (el.type) {
+                case "number":
+                    if (el.classList.contains("percent"))
+                        el.valueAsNumber = getAttr(Game,k)*100;
+                    else
+                        el.valueAsNumber = getAttr(Game,k);
+                    el.addEventListener("change",()=>{
+                        const min = parseFloat(el.dataset.min ?? "0");
+                        const max = parseFloat(el.dataset.max ?? "100");
+                        el.valueAsNumber = clamp(el.valueAsNumber,min,max);
+                        setAttr(Game,k,el.classList.contains("percent")? el.valueAsNumber/max : el.valueAsNumber);
+                    })
+                    break;
+                default:
+                    el.value = getAttr(Game,k);
+                    break;
+            }
+        }
+    }
+}
+updateSettings();
 
 class BlockData {
     constructor(color:Color|string=Color.fromHex("#FFFFFFFF")) {
