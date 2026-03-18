@@ -838,7 +838,7 @@ class Mod {
 
 function onResize() {
     document.querySelectorAll<HTMLElement>(".game-canvas").forEach(canvas=>{
-        if (window.innerWidth >= window.innerHeight) {
+        if (window.innerWidth >= Game.GameCanvas.Canvas.width) {
             canvas.style.height = "100%";
             canvas.style.width = "auto";
         } else {
