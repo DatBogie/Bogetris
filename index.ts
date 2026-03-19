@@ -1,8 +1,17 @@
-// const canvas = document.getElementById("canvas") as HTMLCanvasElement;
-// const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
+import { sfxr } from "./Modules/jsfxr.js"
+import click from "./Sounds/click.json" with { type: 'json' };
+
+var clickSound;
 
 var PauseMenuSel = 0;
 var PauseBtns:HTMLElement[] = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
+
+var __sfx_loaded = false;
+function loadSFX() {
+    __sfx_loaded = true;
+    clickSound = sfxr.toAudio(click);
+    window.removeEventListener("click",loadSFX);
+}
 
 function updateSelectionButtons(detailsSel?:HTMLDetailsElement) : void {
     const modal = document.querySelector(".modal.active");
@@ -34,6 +43,9 @@ function isChildOverflown(el:HTMLElement,parent:HTMLElement=el.parentElement as 
 function focusButton() {
     setTimeout(()=>{
         PauseBtns[PauseMenuSel]?.focus();
+        if (__sfx_loaded)
+            clickSound.play();
+        // clickSound.play();
     },1);
 }
 
@@ -243,6 +255,7 @@ class Color {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Game {
+    static AnimTime:number = 20;
     static Anims:boolean = true;
     static Physics:boolean = false;
     static KeyBinds:Record<string,string> = {}
@@ -355,10 +368,10 @@ class Game {
     static NewGame() {
         Game.Reset();
     }
-    private static GameTick() {
+    private static async GameTick() {
         if (Game.Paused) return;
         if (Game.CurrentBlock && !Game.CurrentBlock.Move(0,1)) {
-            Game.CurrentBlock.Stamp();
+            await Game.CurrentBlock.Stamp();
         }
     }
     static StartGame() {
@@ -442,7 +455,7 @@ class Game {
         for (let x=0; x<Game.Width; x++) {
             Game._data[y][x] = 0;
             if (Game.Anims) {
-                await sleep(2);
+                await sleep(Game.AnimTime);
                 Game.RedrawCanvas();
             }
         }
@@ -467,12 +480,13 @@ class Game {
             py++;
             if (Game.Anims) {
                 Game.RedrawCanvas();
-                await sleep(20);
+                await sleep(Game.AnimTime);
             }
         }
     }
     private static async handleClears() : Promise<boolean> {
         var cFlag = false;
+        Game.BlockCanvas.ClearCanvas();
         for (let y=0; y < Game.Height; y++) {
             if (Game._data[y].every(col=>col!==0)) {
                 await Game.EraseLine(Game, y);
@@ -508,6 +522,8 @@ class Game {
     static TogglePause(paused?:boolean) {
         document.querySelectorAll(".modal.active").forEach(el=>{
             el.classList.remove("active");
+            if (el.id === "settings")
+                RejectSettingsBuffer.Fire();
         });
         if (paused === undefined)
             Game.Paused = !Game.Paused;
@@ -547,15 +563,43 @@ function dummy(x:any) : any {
     return x;
 }
 
+class Signal {
+    private subs:(Function|undefined)[] = [];
+    Connect(func:Function) : number {
+        return this.subs.push(func);
+    }
+    Disconnect(id:number) : void {
+        this.subs[id] = undefined;
+    }
+    Fire() : void {
+        for (const f of this.subs.values()) {
+            if (f === undefined) continue;
+            f();
+        }
+    }
+}
+
 const settingsWin = document.getElementById("settings");
 const Settings = {
     Anims: settingsWin?.querySelector("#settings-anims"),
+    AnimTime: settingsWin?.querySelector("#settings-anim-time"),
     GhostBlockOpacity: settingsWin?.querySelector("#settings-ghost-opacity"),
     Width: settingsWin?.querySelector("#settings-game-width"),
     Height: settingsWin?.querySelector("#settings-game-height"),
     Physics: settingsWin?.querySelector("#settings-physics")
 } as Record<string, HTMLElement|HTMLInputElement>
 const SettingsBuffer:Map<string,Record<string,string[]|HTMLInputElement|any>> = new Map<string,any>();
+const settingsTitle:HTMLDivElement = document.getElementById("settings-title") as HTMLDivElement;
+function UpdateSettingsBuffer(k:string, data:Record<string,string[]|HTMLInputElement|any>) : void {
+    if (getAttr(Game,k) === data.value) {
+        SettingsBuffer.delete(k);
+        if (SettingsBuffer.size === 0)
+            settingsTitle.textContent = "Settings";
+        return
+    }
+    SettingsBuffer.set(k,data);
+    settingsTitle.textContent = "Settings*";
+}
 function WriteSettingsBuffer() : void {
     for (const [k,v] of SettingsBuffer.entries()) {
         setAttr(Game,k,v.value);
@@ -568,38 +612,59 @@ function WriteSettingsBuffer() : void {
         }
     }
     SettingsBuffer.clear();
+    settingsTitle.textContent = "Settings";
 }
+const RejectSettingsBuffer = new Signal();
+RejectSettingsBuffer.Connect(()=>{
+    settingsTitle.textContent = "Settings";
+});
 function handleSettings() : void {
     for (const [k, el] of Object.entries(Settings)) {
         if (el instanceof HTMLInputElement) {
             switch (el.type) {
                 case "number":
+                    const min = parseFloat(el.dataset.min ?? "0");
+                    const max = parseFloat(el.dataset.max ?? "100");
+                    const defaultVal:number = getAttr(Game,k);
                     if (el.classList.contains("percent"))
-                        el.valueAsNumber = getAttr(Game,k)*100;
+                        el.valueAsNumber = getAttr(Game,k)*max;
                     else
                         el.valueAsNumber = getAttr(Game,k);
                     const funcs:string[] = (el.dataset.funcs ?? "").split(",");
                     el.addEventListener("change",()=>{
-                        const min = parseFloat(el.dataset.min ?? "0");
-                        const max = parseFloat(el.dataset.max ?? "100");
+                        if (isNaN(el.valueAsNumber)) {
+                            el.valueAsNumber = SettingsBuffer.get(k)?.value ?? (getAttr(Game,k) ?? defaultVal)*(el.classList.contains("percent")? max : 1);
+                            return;
+                        }
                         const val = (el.classList.contains("int")? Math.trunc : dummy)(clamp(el.valueAsNumber,min,max));
                         // setAttr(Game,k,el.classList.contains("percent")? val/max : val);
-                        SettingsBuffer.set(k,{ value:(el.classList.contains("percent")? val/max : val), funcs:funcs, el:el });
-                        el.valueAsNumber = SettingsBuffer.get(k) as unknown as number * (el.classList.contains("percent")? 100 : 1);
+                        UpdateSettingsBuffer(k,{ value:(el.classList.contains("percent")? val/max : val), funcs:funcs, el:el });
+                        el.valueAsNumber = val;
                     })
+                    RejectSettingsBuffer.Connect(()=>{
+                        el.valueAsNumber = (getAttr(Game,k) ?? defaultVal)*(el.classList.contains("percent")? max : 1);
+                    });
                     break;
                 case "checkbox":
                     el.checked = getAttr(Game,k);
+                    const _defaultVal:boolean = el.checked;
                     el.addEventListener("change",()=>{
                         // setAttr(Game,k,el.checked);
-                        SettingsBuffer.set(k,{ value:el.checked, el:el });
+                        UpdateSettingsBuffer(k,{ value:el.checked, el:el });
+                    });
+                    RejectSettingsBuffer.Connect(()=>{
+                        el.checked = getAttr(Game,k) ?? _defaultVal;
                     });
                     break;
                 default:
                     el.value = getAttr(Game,k);
+                    const __defaultVal:string = el.value;
                     el.addEventListener("change",()=>{
                         // setAttr(Game,k,el.value);
-                        SettingsBuffer.set(k,{ value:el.value, el:el });
+                        UpdateSettingsBuffer(k,{ value:el.value, el:el });
+                    });
+                    RejectSettingsBuffer.Connect(()=>{
+                        el.value = getAttr(Game,k) ?? __defaultVal;
                     });
                     break;
             }
@@ -690,10 +755,10 @@ class BlockInstance extends Block {
             this._draw(canvas,undefined,this.LowestValidY);
         }
     }
-    Stamp() {
+    async Stamp() {
         this.Draw(Game.StaleCanvas);
         Game.WriteShape(this, this._x, this._y, this.CurrentShape);
-        Game.BlockStamped(this);
+        await Game.BlockStamped(this);
     }
     async InstantDrop() {
         if (!Game.Anims)
@@ -705,7 +770,7 @@ class BlockInstance extends Block {
                     await sleep(0);
             }
         }
-        this.Stamp();
+        await this.Stamp();
     }
     private get LowestValidY() : number {
         let y = this._y;
@@ -951,6 +1016,8 @@ const resizeObserver = new ResizeObserver(onResize);
 resizeObserver.observe(document.body);
 window.addEventListener("resize",onResize);
 
+window.addEventListener("click",loadSFX)
+
 window.addEventListener("keydown", event=>{
     if (event.defaultPrevented) return;
     if (!Game.Running || Game.Paused) {
@@ -1061,6 +1128,7 @@ document.getElementById("settings-back")?.addEventListener("click",()=>{
 document.getElementById("settings-quit")?.addEventListener("click",()=>{
     document.getElementById("settings")?.classList.remove("active");
     updateSelectionButtons();
+    RejectSettingsBuffer.Fire();
 });
 
 const detailsArr = [];

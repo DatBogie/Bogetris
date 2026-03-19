@@ -25,11 +25,12 @@
             </div>
         </div>
         <div id="settings" class="center modal">
-            <div>Settings</div>
+            <div id="settings-title">Settings</div>
             <div id="settings-content" class="center modal-content">
                 <ul class="layout">
                     <li><span>Ghost Block Opacity: </span><input id="settings-ghost-opacity" type="number" class="percent keyboard-selectable" data-min="0" data-max="100"><span>%</span></li>
                     <li><span>Animations: </span><input id="settings-anims" type="checkbox" autocomplete="off" class="keyboard-selectable"></li>
+                    <li><span>Animation Time: </span><input id="settings-anim-time" type="number" class="keyboard-selectable" data-min="0" data-max="400"><span>ms</span></li>
                     <li><span>Game Width: </span><input id="settings-game-width" type="number" class="int keyboard-selectable" data-funcs="NewGame,DrawGrid" data-min="4" data-max="1000"><span>px</span></li>
                     <li><span>Game Height: </span><input id="settings-game-height" type="number" class="int keyboard-selectable" data-funcs="NewGame,DrawGrid" data-min="4" data-max="1000"><span>px</span></li>
                     <li><span>Gravity: </span><input id="settings-physics" type="checkbox" autocomplete="off" class="keyboard-selectable" data-funcs="NewGame"></li>
