@@ -1,5 +1,14 @@
 import { sfxr } from "./Modules/jsfxr.js";
 import click from "./Sounds/click.json" with { type: 'json' };
+const clickWar = document.getElementById("click-req");
+clickWar?.addEventListener("click", () => {
+    updateSelectionButtons();
+    clickWar.style.pointerEvents = "none !important";
+    clickWar.style.opacity = "0";
+    setTimeout(() => {
+        clickWar?.remove();
+    }, 600);
+});
 var clickSound;
 var PauseMenuSel = 0;
 var PauseBtns = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
@@ -1053,7 +1062,7 @@ resizeObserver.observe(document.body);
 window.addEventListener("resize", onResize);
 window.addEventListener("click", loadSFX);
 window.addEventListener("keydown", event => {
-    if (event.defaultPrevented)
+    if (event.defaultPrevented || !__sfx_loaded)
         return;
     if (!Game.Running || Game.Paused) {
         switch (event.key) {
@@ -1237,8 +1246,5 @@ document.querySelectorAll("input.keyboard-selectable").forEach(el => {
     el.addEventListener("focus", () => {
         el.select();
     });
-});
-window.addEventListener("load", () => {
-    updateSelectionButtons();
 });
 // export default { Enum, Game, Color, BlockData, Block, BlockInstance }

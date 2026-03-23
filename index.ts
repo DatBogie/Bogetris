@@ -1,6 +1,16 @@
 import { sfxr } from "./Modules/jsfxr.js"
 import click from "./Sounds/click.json" with { type: 'json' };
 
+const clickWar = document.getElementById("click-req");
+clickWar?.addEventListener("click",()=>{
+    updateSelectionButtons();
+    clickWar.style.pointerEvents = "none !important";
+    clickWar.style.opacity = "0";
+    setTimeout(()=>{
+        clickWar?.remove();
+    },600);
+});
+
 type JSFXRSound = {
     play() : void
 }
@@ -1023,7 +1033,7 @@ window.addEventListener("resize",onResize);
 window.addEventListener("click",loadSFX)
 
 window.addEventListener("keydown", event=>{
-    if (event.defaultPrevented) return;
+    if (event.defaultPrevented || !__sfx_loaded) return;
     if (!Game.Running || Game.Paused) {
         switch(event.key) {
             case "ArrowLeft":
@@ -1207,10 +1217,6 @@ function translateKey(k:string,reverse:boolean=false) : string {
     el.addEventListener("focus",()=>{
         el.select();
     });
-});
-
-window.addEventListener("load",()=>{
-    updateSelectionButtons();
 });
 
 // export default { Enum, Game, Color, BlockData, Block, BlockInstance }

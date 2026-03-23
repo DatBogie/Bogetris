@@ -255,3 +255,46 @@ details[open] summary::before {
     content: "⤷";
     transform: rotate(90deg);
 }
+
+@property --click-req-grad0 {
+    syntax: '<color>';
+    initial-value: #181926;
+    inherits: false;
+}
+@property --click-req-grad1 {
+    syntax: '<color>';
+    initial-value: #24273a;
+    inherits: false;
+}
+
+#click-req {
+    pointer-events: all;
+    user-select: none;
+    z-index: 100;
+    color: white;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    position: fixed;
+    left: 0;
+    right: 0;
+    cursor: pointer !important;
+    flex-direction: column;
+    --click-req-grad0: var(--crust);
+    --click-req-grad1: var(--base);
+    background: linear-gradient(45deg, var(--click-req-grad0), var(--click-req-grad1));
+    transition: --click-req-grad0 400ms, --click-req-grad1 400ms, opacity 600ms ease, backdrop-filter 200ms ease-out;
+}
+#click-req > h1 {
+    font-size: 5rem;
+    margin: 0;
+}
+#click-req > i {
+    font-size: 2rem;
+    color: var(--subtext1);
+}
+#click-req:active {
+    --click-req-grad0: #181926aa;
+    --click-req-grad1: #24273aaa;
+    backdrop-filter: blur(20px) grayscale(100%);
+}
