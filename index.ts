@@ -1,7 +1,11 @@
 import { sfxr } from "./Modules/jsfxr.js"
 import click from "./Sounds/click.json" with { type: 'json' };
 
-var clickSound;
+type JSFXRSound = {
+    play() : void
+}
+
+var clickSound:JSFXRSound;
 
 var PauseMenuSel = 0;
 var PauseBtns:HTMLElement[] = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
@@ -11,6 +15,12 @@ function loadSFX() {
     __sfx_loaded = true;
     clickSound = sfxr.toAudio(click);
     window.removeEventListener("click",loadSFX);
+}
+
+function playSound(sound:JSFXRSound) : boolean {
+    if (!__sfx_loaded) return false;
+    sound.play();
+    return true;
 }
 
 function updateSelectionButtons(detailsSel?:HTMLDetailsElement) : void {
@@ -44,8 +54,7 @@ function focusButton() {
     setTimeout(()=>{
         PauseBtns[PauseMenuSel]?.focus();
         if (__sfx_loaded)
-            clickSound.play();
-        // clickSound.play();
+            playSound(clickSound);
     },1);
 }
 
@@ -299,18 +308,12 @@ class Game {
             [Enum.UIThemeKey.accent]: Color.fromHex("#b7bdf8")
         }),Enum.ThemeStyle.Dark)
     ];
-    // static readonly PixelSize:number = 32;
-    // (320 + 640) / (10 + 20)
-    // ((10 + 20) / (320 + 640)) * 1024
-    // 32 + (height/)
     static get PixelSize() : number {
         return Math.min(Game.GameCanvas.Canvas.width/Game.Width,Game.GameCanvas.Canvas.height/Game.Height);
-        // return (Game.GameCanvas.Canvas.width/Game.Width);
-        // return clamp(((Game.Width + Game.Height) / (Game.GameCanvas.Canvas.width + Game.GameCanvas.Canvas.height)) * 1024,0,32);
-        // return clamp((Game.GameCanvas.Canvas.width + Game.GameCanvas.Canvas.height) / (Game.Width + Game.Height),0,32);
     }
     static Width:number = 10;
     static Height:number = 20;
+    static SpeedMul:number = 1.0;
     static readonly BaseSpeedMs:number = 1000.0;
     static GhostBlockOpacity:number = 0.25;
     static Paused:boolean = true;
@@ -581,6 +584,7 @@ class Signal {
 
 const settingsWin = document.getElementById("settings");
 const Settings = {
+    SpeedMul: settingsWin?.querySelector("#settings-game-speed-mul"),
     Anims: settingsWin?.querySelector("#settings-anims"),
     AnimTime: settingsWin?.querySelector("#settings-anim-time"),
     GhostBlockOpacity: settingsWin?.querySelector("#settings-ghost-opacity"),
@@ -1138,7 +1142,8 @@ document.querySelectorAll("details").forEach(el=>{
     detailsArr.push(style);
     document.head.appendChild(style);
     el.classList.add(`details-${ind}`);
-    el.addEventListener("click",()=>{
+    const summary = el.querySelector("summary");
+    summary.addEventListener("click",()=>{
         setTimeout(()=>{
             updateSelectionButtons(el);
         },1);

@@ -139,13 +139,20 @@ button {
 
 button:hover, button:focus, input:focus, summary:focus, details[open] > summary {
     outline: none;
-    transition: scale 200ms ease, background-color 200ms ease, border-color 200ms ease;
+    transition: scale 200ms ease, background-color 200ms ease, border-color 200ms ease, color 200ms ease;
     background-color: var(--crust);
     scale: 1.05;
     border-color: var(--accent);
 }
-details[open] > summary:not(:focus) {
+details[open]:focus-within > summary:not(:focus) {
+    border-color: var(--accent);
+}
+details[open]:not(:focus-within) > summary:not(:focus) {
     border-color: var(--olc);
+}
+summary:focus {
+    background-color: var(--accent) !important;
+    color: black;
 }
 
 button:active {
@@ -163,6 +170,9 @@ button:active {
 ul.layout {
     list-style: none;
     padding: 0;
+}
+ul.layout > li {
+    gap: 5px;
 }
 
 .left-align {

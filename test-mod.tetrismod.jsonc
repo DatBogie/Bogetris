@@ -5,5 +5,12 @@
     "BlockShapes": ["—"],
     "Blocks": [
         
+    ],
+    "Override Levels": true, // true: Replace default level pack. false: Append to default level pack.
+    "Levels": [
+        {
+            "Name": "Level 01",
+            "Speed": 1
+        }
     ]
 }
