@@ -4,17 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Convert Audio File</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap" rel="stylesheet">
     <style>
         @import "/style.css";
         body {
             padding: 5px;
+            display: flex;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+            justify-content: center;
+            align-items: center;
         }
         body > * {
             margin: 5px;
         }
         textarea {
-            width: 50vw;
-            height: 50vh;
+            width: 500px;
+            height: 500px;
             resize: none;
             background-color: var(--base);
             border-color: var(--olc);
@@ -28,12 +37,20 @@
             color: white;
             border: none;
         }
+        h1 {
+            color: white;
+        }
+        h2 {
+            color: var(--text);
+        }
     </style>
     <!-- <link type="stylesheet" href="/Modding/modding.css"> -->
     <!-- <link type="stylesheet" href="/style.css"> -->
 </head>
 <body>
-    <button id="copy">Copy Data</button><input type="file", id="file"><br>
+    <h1>Tetris Web Modding Tools</h1>
+    <h2>Audio Converter</h2>
+    <span><button id="copy">Copy Data</button><input type="file" id="file"></span>
     <textarea id="output" readonly></textarea>
 </body>
 <script src="/Modding/modding.js"></script>
