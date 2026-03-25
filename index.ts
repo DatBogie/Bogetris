@@ -1034,7 +1034,6 @@ class ModEngine {
     static LoadMod(mod:Mod) : boolean {
         if (this.ModList[mod.Namespace] !== undefined) return false;
         this.ModList[mod.Namespace] = mod;
-        mod.Load();
         return true;
     }
 }
