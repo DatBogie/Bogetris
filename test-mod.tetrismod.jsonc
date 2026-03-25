@@ -109,8 +109,8 @@
      * --Sounds Guide--
      * Name         : string                                               : <any>
      * Sounds       : Dict<string, Dict<string, string|Dict<string, any>>> : {
-     *      <key:"click"> : Dict<string, any> : {
-     *          Data   : string|Dict<string, any> : Raw Audio Data or https://jsfx.me serialized JSON object
+     *      <key:"click"|"clear"> : Dict<string, any> : {
+     *          Data   : string|Dict<string, any> : Raw Audio Data (base64 encoded) or https://jsfx.me serialized JSON object
      *          Format : string?                  : "mp3"|"ogg"|"wav" // Optional if `Data` is a serialized JSON from jsfx
      *      }
      *      ...
@@ -148,6 +148,9 @@
                     "sound_vol": 0.25,
                     "sample_rate": 44100,
                     "sample_size": 16
+                },
+                "clear": {
+                    "Data": ""
                 }
             }
         }
@@ -159,34 +162,38 @@
      * CSS   : string?              : Custom CSS. See https://github.com/DatBogie/Tetris_Web/blob/main/style.css
      * Data  : Dict<string, string> : {
      *      // Omitted colors derive from the default style (Catppuccin Macchiato Lavender)
-     *      olc       : string? : HEX, rgb(a), hsv(a), hsl(a), --variable // Outline Color
-     *      rosewater : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      flamingo  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      pink      : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      mauve     : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      red       : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      maroon    : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      peach     : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      yellow    : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      green     : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      teal      : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      sky       : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      sapphire  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      blue      : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      lavender  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      text      : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      subtext0  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      subtext1  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      overlay0  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      overlay1  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      overlay2  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      surface0  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      surface1  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      surface2  : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      base      : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      mantle    : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      crust     : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
-     *      accent    : string? : HEX, rgb(a), hsv(a), hsl(a), --variable // Default: --lavender
+     *      <key:string> : string? : HEX, rgb(a), hsv(a), hsl(a), --variable
+     *      \* Keys: [
+     *          olc, // Outline (border) color
+     *          rosewater,
+     *          flamingo,
+     *          pink,
+     *          mauve,
+     *          red,
+     *          maroon,
+     *          peach,
+     *          yellow,
+     *          green,
+     *          teal,
+     *          sky,
+     *          sapphire,
+     *          blue,
+     *          lavender,
+     *          text,
+     *          subtext0,
+     *          subtext1,
+     *          overlay0,
+     *          overlay1,
+     *          overlay2,
+     *          surface0,
+     *          surface1,
+     *          surface2,
+     *          base,
+     *          mantle,
+     *          crust,
+     *          accent // Default: --lavender
+     *      ] \*
+     
      * }
      */
     "UI Themes": [

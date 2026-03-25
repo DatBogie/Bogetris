@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convert Audio File</title>
+    <style>
+        @import "/style.css";
+        body {
+            padding: 5px;
+        }
+        body > * {
+            margin: 5px;
+        }
+        textarea {
+            width: 50vw;
+            height: 50vh;
+            resize: none;
+            background-color: var(--base);
+            border-color: var(--olc);
+            border-style: solid;
+            border-width: 2px;
+            border-radius: 5px;
+            color: white;
+        }
+        input[type="file"]::file-selector-button {
+            background-color: transparent;
+            color: white;
+            border: none;
+        }
+    </style>
+    <!-- <link type="stylesheet" href="/Modding/modding.css"> -->
+    <!-- <link type="stylesheet" href="/style.css"> -->
+</head>
+<body>
+    <button id="copy">Copy Data</button><input type="file", id="file"><br>
+    <textarea id="output" readonly></textarea>
+</body>
+<script src="/Modding/modding.js"></script>
+</html>
