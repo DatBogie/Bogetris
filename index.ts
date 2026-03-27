@@ -360,7 +360,7 @@ class Color {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Game {
-    static AnimTime:number = 20;
+    static AnimTime:number = 60;
     static Anims:boolean = true;
     static Physics:boolean = false;
     static KeyBinds:Record<string,string> = {};
@@ -507,7 +507,6 @@ class Game {
         if (Game.Paused) return;
         const moveRes:boolean|undefined = await Game.CurrentBlock.Move(0,1);
         if (Game.CurrentBlock && moveRes === false) {
-            console.log(moveRes);
             await Game.CurrentBlock.Stamp();
         }
     }
@@ -592,7 +591,7 @@ class Game {
         for (let x=0; x<Game.Width; x++) {
             Game._data[y][x] = 0;
             if (Game.Anims) {
-                await sleep(Game.AnimTime);
+                await sleep(Math.min(Game.AnimTime/2,80));
                 Game.RedrawCanvas();
             }
         }
@@ -647,8 +646,8 @@ class Game {
     }
     static async BlockStamped(self:BlockInstance) {
         if (self !== Game.CurrentBlock) return;
-        if (await Game.handleClears())
-            await Game.handleClears();
+        // if (await Game.handleClears() && Game.Physics)
+        await Game.handleClears();
         Game.RedrawCanvas();
         Game.CurrentBlock = Game.RandomBlock();
         if (!Game.CurrentBlock.IsValidPosition()) {
@@ -836,6 +835,7 @@ class BlockInstance extends Block {
     constructor(block:Block) {
         super(block.Shapes, block.Data);
         this._x = Math.floor(Game.Width/2-this.CurrentShape[0].length/2);
+        this.targetPos = {x:this._x, y:this._y};
     }
     private _x:number = 0;
     private _y:number = 0;
@@ -849,25 +849,18 @@ class BlockInstance extends Block {
         return this.Shapes[this.Rotation];
     }
     Rotation:number = 0;
-    IsValidPosition(x:number=this._x, y:number=this._y, shape:number[][]=this.CurrentShape) : boolean {
+    IsValidPosition(x:number=this.targetPos.x, y:number=this.targetPos.y, shape:number[][]=this.CurrentShape) : boolean {
         for (const [oY, row] of shape.entries()) {
             for (const [oX, col] of row.entries()) {
                 if (col === 0) continue;
-                if (Game.Data[Utils.BiasedRound(y)+oY] === undefined || Game.Data[0][Utils.BiasedRound(x)+oX] === undefined) return false;
-                if (Game.Data[Utils.BiasedRound(y)+oY][Utils.BiasedRound(x)+oX] !== 0)
+                if (Game.Data[y+oY] === undefined || Game.Data[0][x+oX] === undefined) return false;
+                if (Game.Data[y+oY][x+oX] !== 0)
                     return false;
             }
         }
         return true;
     }
-    private get tween() : Tween {
-        return this.tweens[this.tweens.length-1];
-    }
-    private get prevTween() : Tween {
-        if (this.tweens.length <= 1) return undefined;
-        return this.tweens[this.tweens.length-2];
-    }
-    private tweens:Tween[] = [];
+    private tween:Tween;
     private targetPos:xyObj;
     private dropping:boolean = false;
     get IsDropping() : boolean {
@@ -875,62 +868,48 @@ class BlockInstance extends Block {
     }
     async Move(x:number=0, y:number=0,isInstantDrop:boolean=false) : Promise<boolean|undefined> {
         if (this.dropping) return undefined;
-        const [orX, orY] = [x,y];
-        x += this.targetPos?.x ?? Utils.BiasedRound(this._x); y += this.targetPos?.y ?? Utils.BiasedRound(this._y);
+        x+=this.targetPos.x; y+=this.targetPos.y;
         if (!this.IsValidPosition(x,y)) return !this.dropping? false : undefined;
         if (isInstantDrop) this.dropping = true;
         this.targetPos = {x:x,y:y};
-        const tData = {s:{x:Utils.BiasedRound(this._x,orX),y:Utils.BiasedRound(this._y,orY)},e:{x:Utils.BiasedRound(x,orX),y:Utils.BiasedRound(y,orY)}};
-        const { promise: comp, resolve } = Promise.withResolvers();
-        // if (this.tween && this.tween.isPlaying()) {
-        //     this.tween.stop();
-        //     this._x = Utils.BiasedRound(x,orX);
-        //     this._y = Utils.BiasedRound(y,orY);
-        //     this.Draw();
-        //     return true;
-        // }
-        const noTweens = this.tweens.length === 0;
-        if (this.tween && this.tween.isPlaying()) {
-            this.tween.stop();
-        }
-        this.tweens.push(new Tween(tData.s));
-        this.tween
-        .to(tData.e,Game.AnimTime)
-        .easing(Easing.Linear.InOut)
-        .dynamic(true)
-        .onUpdate(data=>{
-            this._x=data.x;
-            this._y=data.y;
+        if (Game.Anims) {
+            const tData = {s:{x:this._x,y:this._y},e:this.targetPos};
+            const { promise: comp, resolve } = Promise.withResolvers();
+            if (this.tween && this.tween.isPlaying())
+                this.tween.stop();
+            this.tween = new Tween(tData.s)
+            .to(tData.e,Game.AnimTime)
+            .easing(!isInstantDrop? Easing.Linear.InOut : Easing.Circular.In)
+            .dynamic(true)
+            .onUpdate(data=>{
+                this._x=data.x;
+                this._y=data.y;
+                this.Draw(undefined);
+            });
+            var isComplete = false;
+            const fin = ()=>{
+                if (isInstantDrop) this.dropping = false;
+                isComplete = true;
+                resolve(undefined);
+            };
+            this.tween.onComplete(fin);
+            this.tween.onStop(fin);
+            this.tween.start();
+            const updateFunc = ()=>{
+                const t = performance.now();
+                this.tween.update(t);
+                if (!isComplete)
+                    requestAnimationFrame(updateFunc);
+            };
+            requestAnimationFrame(updateFunc);
+            await comp;
+            await sleep(2);
+        } else {
+            [this._x, this._y] = [this.targetPos.x, this.targetPos.y];
             this.Draw();
-        });
-        var isComplete = false;
-        const fin = ()=>{
-            if (isInstantDrop) this.dropping = false;
-            isComplete = true;
-            resolve(undefined);
-        };
-        this.tween.onComplete(fin);
-        this.tween.onStop(fin);
-        this.tween.start();
-        // if (!this.prevTween)
-        //     this.tween.start();
-        // else if (this.prevTween.isPlaying()) {
-        //     this.prevTween.stop();
-        //     this.prevTween.chain(this.tween).start();
-        // } else
-        //     this.tween.start();
-        const updateFunc = ()=>{
-            const t = performance.now();
-            this.tween.update(t);
-            if (!isComplete)
-                requestAnimationFrame(updateFunc);
-        };
-        requestAnimationFrame(updateFunc);
-        await comp;
-        await sleep(2);
-        // this._x=Utils.BiasedRound(x);
-        // this._y=Utils.BiasedRound(y);
-        // this.Draw();
+            if (isInstantDrop)
+                this.dropping = false;
+        }
         return !this.dropping? true : false;
     }
     Rotate(reverse:boolean=false) {
@@ -960,32 +939,26 @@ class BlockInstance extends Block {
         // Draw ghost block
         if (canvas === Game.BlockCanvas && this.LowestValidY > this._y) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.GhostBlockOpacity);
-            this._draw(canvas,Utils.BiasedRound(this._x),Utils.BiasedRound(this.LowestValidY));
+            this._draw(canvas,this.targetPos.x,this.LowestValidY);
+            // this._draw(canvas,Utils.BiasedRound(this._x,orX),Utils.BiasedRound(this.LowestValidY,orY));
         }
     }
+    private stamping:boolean = false;
     async Stamp() {
-        if (this.dropping) return;
-        this._x = Utils.BiasedRound(this._x);
-        this._y = Utils.BiasedRound(this._y);
+        if (this.dropping || this.stamping) return;
+        this.stamping = true;
+        [this._x, this._y] = [this.targetPos.x, this.targetPos.y];
         this.Draw(Game.StaleCanvas);
         Game.WriteShape(this, this._x, this._y, this.CurrentShape);
         await Game.BlockStamped(this);
+        this.stamping = false;
     }
     async InstantDrop() {
-        if (!Game.Anims)
-            this.Move(0,this.LowestValidY-this._y,true);
-        else {
-            await this.Move(0,this.LowestValidY-this._y,true);
-            // for (let i=this._y; i<this.LowestValidY; i++) {
-            //     this.Move(0,1);
-            //     if (i % 2 === 0)
-            //         await sleep(0);
-            // }
-        }
+        await this.Move(0,this.LowestValidY-(this.targetPos.y),true);
         await this.Stamp();
     }
     private get LowestValidY() : number {
-        let y = this._y;
+        let y = this.targetPos.y;
         while (true) {
             y++;
             if (!this.IsValidPosition(undefined,y)) {
