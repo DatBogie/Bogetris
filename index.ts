@@ -1,5 +1,6 @@
 import { sfxr } from "./Modules/jsfxr.js"
 import click from "./Sounds/click.json" with { type: 'json' };
+import { Tween, Easing, Group, update } from "@tweenjs/tween.js";
 
 const clickWar = document.getElementById("click-req");
 clickWar?.addEventListener("click",()=>{
@@ -154,6 +155,11 @@ class Utils {
             x[k] ??= v;
         }
         return x;
+    }
+    static BiasedRound(x:number,dir:number=0) : number {
+        if (x > Math.floor(x) && dir > 0)
+            return Math.floor(x) + 1;
+        return Math.floor(x);
     }
 }
 
@@ -353,15 +359,6 @@ class Color {
 // Retrieved 2026-03-18, License - CC BY-SA 4.0
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-class TimeStampedData {
-    constructor(data?:any) {
-        this.TimeStamp = Date.now();
-        this.Data = data;
-    }
-    TimeStamp:number;
-    Data:any;
-}
-
 class Game {
     static AnimTime:number = 20;
     static Anims:boolean = true;
@@ -508,7 +505,7 @@ class Game {
     }
     private static async GameTick() {
         if (Game.Paused) return;
-        if (Game.CurrentBlock && !Game.CurrentBlock.Move(0,1)) {
+        if (Game.CurrentBlock && !await Game.CurrentBlock.Move(0,1)) {
             await Game.CurrentBlock.Stamp();
         }
     }
@@ -829,6 +826,10 @@ class Block {
     readonly Data:BlockData;
 }
 
+type xyObj = {
+    x: number;
+    y: number;
+};
 class BlockInstance extends Block {
     constructor(block:Block) {
         super(block.Shapes, block.Data);
@@ -850,18 +851,58 @@ class BlockInstance extends Block {
         for (const [oY, row] of shape.entries()) {
             for (const [oX, col] of row.entries()) {
                 if (col === 0) continue;
-                if (Game.Data[y+oY] === undefined || Game.Data[0][x+oX] === undefined) return false;
-                if (Game.Data[y+oY][x+oX] !== 0)
+                if (Game.Data[Utils.BiasedRound(y)+oY] === undefined || Game.Data[0][Utils.BiasedRound(x)+oX] === undefined) return false;
+                if (Game.Data[Utils.BiasedRound(y)+oY][Utils.BiasedRound(x)+oX] !== 0)
                     return false;
             }
         }
         return true;
     }
-    Move(x:number=0, y:number=0) : boolean {
-        x+=this._x;y+=this._y;
+    private tween:Tween;
+    private targetPos:xyObj;
+    async Move(x:number=0, y:number=0) : Promise<boolean> {
+        const [orX, orY] = [x,y];
+        x += this.targetPos?.x ?? Utils.BiasedRound(this._x); y += this.targetPos?.y ?? Utils.BiasedRound(this._y);
         if (!this.IsValidPosition(x,y)) return false;
-        this._x = x;this._y = y;
-        this.Draw();
+        this.targetPos = {x:x,y:y};
+        const tData = {s:{x:Utils.BiasedRound(this._x,orX),y:Utils.BiasedRound(this._y,orY)},e:{x:Utils.BiasedRound(x,orX),y:Utils.BiasedRound(y,orY)}};
+        const { promise: comp, resolve } = Promise.withResolvers();
+        // if (this.tween && this.tween.isPlaying()) {
+        //     this.tween.stop();
+        //     this._x = Utils.BiasedRound(x,orX);
+        //     this._y = Utils.BiasedRound(y,orY);
+        //     this.Draw();
+        //     return true;
+        // }
+        this.tween = new Tween(tData.s)
+        .to(tData.e,Game.AnimTime)
+        .easing(Easing.Linear.InOut)
+        .dynamic(true)
+        .onUpdate(data=>{
+            this._x=data.x;
+            this._y=data.y;
+            this.Draw();
+        });
+        var isComplete = false;
+        const fin = ()=>{
+            isComplete = true;
+            resolve(undefined);
+        };
+        this.tween.onComplete(fin);
+        this.tween.onStop(fin);
+        this.tween.start();
+        const updateFunc = ()=>{
+            const t = performance.now();
+            this.tween.update(t);
+            if (!isComplete)
+                requestAnimationFrame(updateFunc);
+        };
+        requestAnimationFrame(updateFunc);
+        await comp;
+        await sleep(2);
+        // this._x=Utils.BiasedRound(x);
+        // this._y=Utils.BiasedRound(y);
+        // this.Draw();
         return true;
     }
     Rotate(reverse:boolean=false) {
@@ -891,10 +932,12 @@ class BlockInstance extends Block {
         // Draw ghost block
         if (canvas === Game.BlockCanvas && this.LowestValidY > this._y) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.GhostBlockOpacity);
-            this._draw(canvas,undefined,this.LowestValidY);
+            this._draw(canvas,Utils.BiasedRound(this._x),Utils.BiasedRound(this.LowestValidY));
         }
     }
     async Stamp() {
+        this._x = Utils.BiasedRound(this._x);
+        this._y = Utils.BiasedRound(this._y);
         this.Draw(Game.StaleCanvas);
         Game.WriteShape(this, this._x, this._y, this.CurrentShape);
         await Game.BlockStamped(this);
@@ -903,11 +946,12 @@ class BlockInstance extends Block {
         if (!Game.Anims)
             this.Move(0,this.LowestValidY-this._y);
         else {
-            for (let i=this._y; i<this.LowestValidY; i++) {
-                this.Move(0,1);
-                if (i % 2 === 0)
-                    await sleep(0);
-            }
+            await this.Move(0,this.LowestValidY-this._y);
+            // for (let i=this._y; i<this.LowestValidY; i++) {
+            //     this.Move(0,1);
+            //     if (i % 2 === 0)
+            //         await sleep(0);
+            // }
         }
         await this.Stamp();
     }

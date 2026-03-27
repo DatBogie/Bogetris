@@ -1,5 +1,6 @@
 import { sfxr } from "./Modules/jsfxr.js";
 import click from "./Sounds/click.json" with { type: 'json' };
+import { Tween, Easing } from "@tweenjs/tween.js";
 const clickWar = document.getElementById("click-req");
 clickWar?.addEventListener("click", () => {
     updateSelectionButtons();
@@ -194,6 +195,11 @@ class Utils {
         }
         return x;
     }
+    static BiasedRound(x, dir = 0) {
+        if (x > Math.floor(x) && dir > 0)
+            return Math.floor(x) + 1;
+        return Math.floor(x);
+    }
 }
 class Canvas2D {
     constructor(canvas, ctx) {
@@ -227,18 +233,51 @@ class ColorPalette {
     BlockTheme;
     UITheme;
     Style;
+    enabled = false;
+    get Enabled() {
+        return this.enabled;
+    }
+    set Enabled(enabled) {
+        if (enabled === this.enabled)
+            return;
+        this.enabled = enabled === undefined ? !this.enabled : enabled;
+        Game.ApplyColorPalettes();
+    }
+}
+class BlockTheme {
+    constructor(name, data) {
+        this.name = name;
+        this.Data = data;
+    }
+    name;
+    get Name() {
+        return this.Name;
+    }
+    Data;
+    enabled = false;
+    get Enabled() {
+        return this.enabled;
+    }
+    set Enabled(enabled) {
+        if (enabled === this.enabled)
+            return;
+        this.enabled = enabled === undefined ? !this.enabled : enabled;
+        Game.ApplyBlockThemes();
+    }
 }
 class UITheme {
-    constructor(name, data, style) {
+    constructor(name, data, style, css) {
         this.name = name;
         this.Data = data;
         this.style = style;
+        this.CSS = css;
     }
     name;
     get Name() {
         return this.name;
     }
     Data;
+    CSS;
     style;
     get Style() {
         return this.style;
@@ -246,6 +285,16 @@ class UITheme {
     setPropertiesFromPalette(palette) {
         this.name ??= palette.Name;
         this.style ??= palette.Style;
+    }
+    enabled = false;
+    get Enabled() {
+        return this.enabled;
+    }
+    set Enabled(enabled) {
+        if (enabled === this.enabled)
+            return;
+        this.enabled = enabled === undefined ? !this.enabled : enabled;
+        Game.ApplyUIThemes();
     }
 }
 class Color {
@@ -262,6 +311,15 @@ class Color {
         if (hex.length > 6)
             o = parseInt(hex.substring(6, 8), 16);
         return new Color(r, g, b, o / 255);
+    }
+    static parseCSSNumber(n, retInt = false) {
+        if (n.endsWith("deg")) {
+            return (!retInt ? parseFloat : parseInt)(n) / 360;
+        }
+        if (n.endsWith("%")) {
+            return (!retInt ? parseFloat : parseInt)(n) / 100;
+        }
+        return (!retInt ? parseFloat : parseInt)(n);
     }
     /*
      * Adapted version of https://gist.github.com/mjackson/5311256 > hslToRgb()
@@ -292,6 +350,36 @@ class Color {
             return new Color(hue2rgb(p, q, h + 1 / 3), hue2rgb(p, q, h), hue2rgb(p, q, h - 1 / 3), a);
         }
     }
+    static fromCSS(s) {
+        if (s.startsWith("rgb")) {
+            let r, g, b, a;
+            let data;
+            if (s.startsWith("rgba"))
+                data = s.substring(5, s.length - 1).split(",", 4);
+            else
+                data = s.substring(4, s.length - 1).split(",", 3);
+            r = parseInt(data[0]);
+            g = parseInt(data[1]);
+            b = parseInt(data[2]);
+            if (data.length > 3)
+                a = parseFloat(data[3]);
+            return new Color(r, g, b, a);
+        }
+        if (s.startsWith("#")) {
+            return Color.fromHex(s);
+        }
+        if (s.startsWith("hsl")) {
+            let h, _s, l, a;
+            let data;
+            if (s.startsWith("hsla"))
+                data = s.substring(5, s.length - 1).split(",", 4);
+            else
+                data = s.substring(4, s.length - 1).split(",", 3);
+            h = Color.parseCSSNumber(data[0], true);
+            _s = Color.parseCSSNumber(data[0], true);
+            return Color.fromHSLA(h, _s, l, a);
+        }
+    }
     _rgb;
     Opacity;
     get RGBA() {
@@ -317,8 +405,8 @@ class Game {
     static Anims = true;
     static Physics = false;
     static KeyBinds = {};
-    static ColorPalettes = [
-        new ColorPalette("Catpuccin Macchiato", {
+    static BlockThemes = {
+        "Default": new BlockTheme(undefined, {
             [Enum.BlockShape.I]: Color.fromHex("#91d7e3"),
             [Enum.BlockShape.J]: Color.fromHex("#eed49f"),
             [Enum.BlockShape.L]: Color.fromHex("#c6a0f6"),
@@ -326,7 +414,10 @@ class Game {
             [Enum.BlockShape.S]: Color.fromHex("#ed8796"),
             [Enum.BlockShape.T]: Color.fromHex("#b7bdf8"),
             [Enum.BlockShape.Z]: Color.fromHex("#f5a97f")
-        }, new UITheme(undefined, {
+        })
+    };
+    static UIThemes = {
+        "Default": new UITheme(undefined, {
             [Enum.UIThemeKey.olc]: Color.fromHSLA(0, 0, 100, .25),
             [Enum.UIThemeKey.rosewater]: Color.fromHex("#f4dbd6"),
             [Enum.UIThemeKey.flamingo]: Color.fromHex("#f0c6c6"),
@@ -355,8 +446,42 @@ class Game {
             [Enum.UIThemeKey.mantle]: Color.fromHex("#1e2030"),
             [Enum.UIThemeKey.crust]: Color.fromHex("#181926"),
             [Enum.UIThemeKey.accent]: Color.fromHex("#b7bdf8")
-        }), Enum.ThemeStyle.Dark)
-    ];
+        })
+    };
+    static ColorPalettes = {
+        "Default": new ColorPalette("Catppuccin Macchiato", Game.BlockThemes.Default, Game.UIThemes.Default, Enum.ThemeStyle.Dark)
+    };
+    static filterActive(dict, callback, invert = false) {
+        const ret = {};
+        for (const [k, theme] of Object.entries(dict))
+            if ((theme.Enabled && !invert) || (!theme.Enabled && invert)) {
+                ret[k] = theme;
+                if (callback)
+                    callback(k, theme);
+            }
+        return ret;
+    }
+    static get ActiveUIThemes() {
+        return Game.filterActive(Game.UIThemes);
+    }
+    static get ActiveBlockThemes() {
+        return Game.filterActive(Game.BlockThemes);
+    }
+    static get ActiveColorPalettes() {
+        return Game.filterActive(Game.ColorPalettes);
+    }
+    static ApplyUIThemes() {
+    }
+    static ApplyBlockThemes() {
+    }
+    static ApplyColorPalettes() {
+        Game.filterActive(Game.ColorPalettes, (k, theme) => {
+            if (theme.BlockTheme)
+                theme.BlockTheme.Enabled = true;
+            if (theme.UITheme)
+                theme.UITheme.Enabled = true;
+        });
+    }
     static get PixelSize() {
         return Math.min(Game.GameCanvas.Canvas.width / Game.Width, Game.GameCanvas.Canvas.height / Game.Height);
     }
@@ -387,7 +512,7 @@ class Game {
         return new Point(Game.CenterPoint.X - (Game.Width * Game.PixelSize) / 2, Game.CenterPoint.Y - (Game.Height * Game.PixelSize) / 2);
     }
     static get Speed() {
-        return Game.BaseSpeedMs / Game.Level.Speed;
+        return Game.BaseSpeedMs / Game.Level.Speed / Game.SpeedMul;
     }
     static get Data() {
         return Game._data;
@@ -417,7 +542,7 @@ class Game {
     static async GameTick() {
         if (Game.Paused)
             return;
-        if (Game.CurrentBlock && !Game.CurrentBlock.Move(0, 1)) {
+        if (Game.CurrentBlock && !await Game.CurrentBlock.Move(0, 1)) {
             await Game.CurrentBlock.Stamp();
         }
     }
@@ -770,22 +895,61 @@ class BlockInstance extends Block {
             for (const [oX, col] of row.entries()) {
                 if (col === 0)
                     continue;
-                if (Game.Data[y + oY] === undefined || Game.Data[0][x + oX] === undefined)
+                if (Game.Data[Utils.BiasedRound(y) + oY] === undefined || Game.Data[0][Utils.BiasedRound(x) + oX] === undefined)
                     return false;
-                if (Game.Data[y + oY][x + oX] !== 0)
+                if (Game.Data[Utils.BiasedRound(y) + oY][Utils.BiasedRound(x) + oX] !== 0)
                     return false;
             }
         }
         return true;
     }
-    Move(x = 0, y = 0) {
-        x += this._x;
-        y += this._y;
+    tween;
+    targetPos;
+    async Move(x = 0, y = 0) {
+        const [orX, orY] = [x, y];
+        x += this.targetPos?.x ?? Utils.BiasedRound(this._x);
+        y += this.targetPos?.y ?? Utils.BiasedRound(this._y);
         if (!this.IsValidPosition(x, y))
             return false;
-        this._x = x;
-        this._y = y;
-        this.Draw();
+        this.targetPos = { x: x, y: y };
+        const tData = { s: { x: Utils.BiasedRound(this._x, orX), y: Utils.BiasedRound(this._y, orY) }, e: { x: Utils.BiasedRound(x, orX), y: Utils.BiasedRound(y, orY) } };
+        const { promise: comp, resolve } = Promise.withResolvers();
+        // if (this.tween && this.tween.isPlaying()) {
+        //     this.tween.stop();
+        //     this._x = Utils.BiasedRound(x,orX);
+        //     this._y = Utils.BiasedRound(y,orY);
+        //     this.Draw();
+        //     return true;
+        // }
+        this.tween = new Tween(tData.s)
+            .to(tData.e, Game.AnimTime)
+            .easing(Easing.Linear.InOut)
+            .dynamic(true)
+            .onUpdate(data => {
+            this._x = data.x;
+            this._y = data.y;
+            this.Draw();
+        });
+        var isComplete = false;
+        const fin = () => {
+            isComplete = true;
+            resolve(undefined);
+        };
+        this.tween.onComplete(fin);
+        this.tween.onStop(fin);
+        this.tween.start();
+        const updateFunc = () => {
+            const t = performance.now();
+            this.tween.update(t);
+            if (!isComplete)
+                requestAnimationFrame(updateFunc);
+        };
+        requestAnimationFrame(updateFunc);
+        await comp;
+        await sleep(2);
+        // this._x=Utils.BiasedRound(x);
+        // this._y=Utils.BiasedRound(y);
+        // this.Draw();
         return true;
     }
     Rotate(reverse = false) {
@@ -818,10 +982,12 @@ class BlockInstance extends Block {
         // Draw ghost block
         if (canvas === Game.BlockCanvas && this.LowestValidY > this._y) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.GhostBlockOpacity);
-            this._draw(canvas, undefined, this.LowestValidY);
+            this._draw(canvas, Utils.BiasedRound(this._x), Utils.BiasedRound(this.LowestValidY));
         }
     }
     async Stamp() {
+        this._x = Utils.BiasedRound(this._x);
+        this._y = Utils.BiasedRound(this._y);
         this.Draw(Game.StaleCanvas);
         Game.WriteShape(this, this._x, this._y, this.CurrentShape);
         await Game.BlockStamped(this);
@@ -830,11 +996,12 @@ class BlockInstance extends Block {
         if (!Game.Anims)
             this.Move(0, this.LowestValidY - this._y);
         else {
-            for (let i = this._y; i < this.LowestValidY; i++) {
-                this.Move(0, 1);
-                if (i % 2 === 0)
-                    await sleep(0);
-            }
+            await this.Move(0, this.LowestValidY - this._y);
+            // for (let i=this._y; i<this.LowestValidY; i++) {
+            //     this.Move(0,1);
+            //     if (i % 2 === 0)
+            //         await sleep(0);
+            // }
         }
         await this.Stamp();
     }
@@ -1025,24 +1192,20 @@ class ModEngine {
         if (this.ModList[mod.Namespace] !== undefined)
             return false;
         this.ModList[mod.Namespace] = mod;
-        mod.Load();
         return true;
     }
 }
 class Mod {
-    constructor(ns, name, desc = "", onLoad, blocks) {
-        this.Namespace = ns;
-        this.Name = name;
-        this.Description = desc;
-        this.Blocks = blocks;
-        this.Load = onLoad;
+    constructor(modData) {
+        this.Name = modData.Name;
+        this.Description = modData.Description ?? "";
+        this.Blocks = modData["Custom Blocks"];
     }
     ;
     Name;
     Description;
     Namespace;
     Blocks;
-    Load;
 }
 function onResize() {
     const cond = document.documentElement.scrollWidth <= window.innerWidth || document.documentElement.scrollHeight <= window.innerHeight;
