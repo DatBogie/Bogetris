@@ -119,7 +119,7 @@ body {
     gap: 12px;
 }
 
-button, input, summary {
+button, input, summary, select {
     transition: scale 200ms ease, border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
 }
 
@@ -137,7 +137,7 @@ button {
     padding-bottom: 7px;
 }
 
-button:hover, button:focus, input:focus, summary:focus, details[open] > summary {
+button:hover, button:focus, input:hover, input:focus, summary:hover, summary:focus, details[open] > summary, select:hover, select:focus {
     outline: none;
     transition: scale 200ms ease, background-color 200ms ease, border-color 200ms ease, color 200ms ease;
     background-color: var(--crust);
@@ -179,7 +179,7 @@ ul.layout > li {
     text-align: left;
 }
 
-input {
+input, select {
     background-color: var(--base);
     color: white;
     border-radius: 5px;

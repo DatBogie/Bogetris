@@ -39,7 +39,9 @@ function updateSelectionButtons(detailsSel?:HTMLDetailsElement) : void {
     const btns:HTMLElement[] = Array.from(modal? modal.querySelectorAll(".modal-content .keyboard-selectable") : document.querySelectorAll("#pause-btns > .keyboard-selectable"));
     const tBtns:HTMLElement[] = [];
     for (const btn of btns.values()) {
-        const details:HTMLDetailsElement = btn.parentElement?.parentElement?.parentElement?.parentElement as HTMLDetailsElement;
+        let details:HTMLDetailsElement = btn.parentElement?.parentElement?.parentElement?.parentElement as HTMLDetailsElement;
+        if (!details || !(details instanceof HTMLDetailsElement))
+            details = btn.parentElement?.parentElement?.parentElement?.parentElement?.parentElement as HTMLDetailsElement;
         if (!btn.classList.contains("hidden") && (!details || !(details instanceof HTMLDetailsElement) || details.open)) {
             tBtns.push(btn);
         }
@@ -359,8 +361,21 @@ class Color {
 // Retrieved 2026-03-18, License - CC BY-SA 4.0
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+type easeStyle = "Linear"|"Sinusoidal"|"Quadratic"|"Cubic"|"Quartic"|"Quintic"|"Circular"|"Exponential"|"Back"|"Bounce"|"Elastic";
+type easeDir = "In"|"Out"|"InOut";
+
 class Game {
     static AnimTime:number = 60;
+    static MoveEaseStyle:easeStyle = "Linear";
+    static MoveEaseDirection:easeDir = "InOut";
+    static DropEaseStyle:easeStyle = "Circular";
+    static DropEaseDirection:easeDir = "In";
+    static get MoveEase() : typeof Easing.Sinusoidal.InOut {
+        return Easing[this.MoveEaseStyle][this.MoveEaseDirection];
+    }
+    static get DropEase() : typeof Easing.Sinusoidal.InOut {
+        return Easing[this.DropEaseStyle][this.DropEaseDirection];
+    }
     static Anims:boolean = true;
     static Physics:boolean = false;
     static KeyBinds:Record<string,string> = {};
@@ -723,11 +738,15 @@ const Settings = {
     GhostBlockOpacity: settingsWin?.querySelector("#settings-ghost-opacity"),
     Width: settingsWin?.querySelector("#settings-game-width"),
     Height: settingsWin?.querySelector("#settings-game-height"),
-    Physics: settingsWin?.querySelector("#settings-physics")
+    Physics: settingsWin?.querySelector("#settings-physics"),
+    MoveEaseStyle: settingsWin?.querySelector("#settings-ease-style-move"),
+    MoveEaseDirection: settingsWin?.querySelector("#settings-ease-dir-move"),
+    DropEaseStyle: settingsWin?.querySelector("#settings-ease-style-drop"),
+    DropEaseDirection: settingsWin?.querySelector("#settings-ease-dir-drop")
 } as Record<string, HTMLElement|HTMLInputElement>
-const SettingsBuffer:Map<string,Record<string,string[]|HTMLInputElement|any>> = new Map<string,any>();
+const SettingsBuffer:Map<string,Record<string,string[]|HTMLInputElement|HTMLSelectElement|any>> = new Map<string,any>();
 const settingsTitle:HTMLDivElement = document.getElementById("settings-title") as HTMLDivElement;
-function UpdateSettingsBuffer(k:string, data:Record<string,string[]|HTMLInputElement|any>) : void {
+function UpdateSettingsBuffer(k:string, data:Record<string,string[]|HTMLInputElement|HTMLSelectElement|any>) : void {
     if (getAttr(Game,k) === data.value) {
         SettingsBuffer.delete(k);
         if (SettingsBuffer.size === 0)
@@ -805,6 +824,17 @@ function handleSettings() : void {
                     });
                     break;
             }
+        } else if (el instanceof HTMLSelectElement) {
+            if (el.classList.contains("ease")) {
+                el.value = getAttr(Game,k);
+                const __defaultVal:string = el.value;
+                el.addEventListener("change",()=>{
+                    UpdateSettingsBuffer(k,{ value:el.value, el:el });
+                });
+                RejectSettingsBuffer.Connect(()=>{
+                    el.value = getAttr(Game,k) ?? __defaultVal;
+                });
+            }
         }
     }
 }
@@ -879,7 +909,7 @@ class BlockInstance extends Block {
                 this.tween.stop();
             this.tween = new Tween(tData.s)
             .to(tData.e,Game.AnimTime)
-            .easing(!isInstantDrop? Easing.Linear.InOut : Easing.Circular.In)
+            .easing(!isInstantDrop? Game.MoveEase : Game.DropEase)
             .dynamic(true)
             .onUpdate(data=>{
                 this._x=data.x;
@@ -1199,7 +1229,7 @@ window.addEventListener("resize",onResize);
 
 window.addEventListener("click",loadSFX)
 
-window.addEventListener("keydown", event=>{
+window.addEventListener("keydown", async event=>{
     if (event.defaultPrevented || !__sfx_loaded) return;
     if (!Game.Running || Game.Paused) {
         switch(event.key) {
@@ -1214,6 +1244,8 @@ window.addEventListener("keydown", event=>{
             case "c": break;
             default: return;
         }
+        if (document.activeElement.classList.contains("keybind") && document.activeElement.textContent === "...")
+            return event.preventDefault();
         switch(event.key) {
             case "ArrowLeft":
                 if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement)
@@ -1229,10 +1261,14 @@ window.addEventListener("keydown", event=>{
                 return focusButton();
             case "z":
             case "c":
-            case "Enter":
-                (document.activeElement as HTMLElement|undefined)?.click();
-                return;
             case " ":
+            case "Enter":
+                if (!(document.activeElement instanceof HTMLSelectElement)) {
+                    if (document.activeElement.classList.contains("keybind")) await sleep(2);
+                    (document.activeElement as HTMLElement|undefined)?.click();
+                } else
+                    (document.activeElement as HTMLSelectElement|undefined)?.showPicker();
+                return;
             case "Escape":
                 if (!Game.Running) return;
                 break;
@@ -1353,7 +1389,7 @@ function translateKey(k:string,reverse:boolean=false) : string {
 (document.querySelectorAll("button.keybind") as NodeListOf<HTMLButtonElement>).forEach(el=>{
     Game.KeyBinds[el.dataset.bind ?? ""] = el.dataset.key ?? "";
     function click(event:KeyboardEvent) {
-        if (event.defaultPrevented || event.key === "Escape") {
+        if (event.key === "Escape") {
             el.textContent = translateKey(el.dataset.key ?? "");
             return;
         }
@@ -1365,25 +1401,37 @@ function translateKey(k:string,reverse:boolean=false) : string {
     }
     el.textContent = translateKey(el.dataset.key ?? "");
     el.addEventListener("click",()=>{
-        el.textContent = "…"
+        el.textContent = "..."
         document.addEventListener("keydown",click);
     });
 });
 
-(document.querySelectorAll("input.keyboard-selectable") as NodeListOf<HTMLInputElement>).forEach(el=>{
+function preventKeyEvents(el:HTMLInputElement|HTMLElement) {
     el.addEventListener("keydown",event=>{
-        switch (event.key) {
-            case "Enter":
-            case "ArrowUp":
-            case "ArrowDown":
-                return event.preventDefault();
-            default:
-                return;
+        if (!el.classList.contains("keybind") || el.textContent !== "...") {
+            switch ((event as KeyboardEvent).key) {
+                case "Enter":
+                case " ":
+                case "ArrowUp":
+                case "ArrowDown":
+                    return event.preventDefault();
+                case "ArrowLeft":
+                case "ArrowRight":
+                    return !(el instanceof HTMLInputElement)? event.preventDefault() : undefined;
+                default:
+                    return;
+            }
         }
     });
-    el.addEventListener("focus",()=>{
-        el.select();
-    });
+    if (el instanceof HTMLInputElement) {
+        el.addEventListener("focus",()=>{
+            el.select();
+        });
+    }
+}
+
+(document.querySelectorAll(".keyboard-selectable") as NodeListOf<HTMLElement>).forEach(el=>{
+    preventKeyEvents(el);
 });
 
 // export default { Enum, Game, Color, BlockData, Block, BlockInstance }

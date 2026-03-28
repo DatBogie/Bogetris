@@ -30,7 +30,9 @@ function updateSelectionButtons(detailsSel) {
     const btns = Array.from(modal ? modal.querySelectorAll(".modal-content .keyboard-selectable") : document.querySelectorAll("#pause-btns > .keyboard-selectable"));
     const tBtns = [];
     for (const btn of btns.values()) {
-        const details = btn.parentElement?.parentElement?.parentElement?.parentElement;
+        let details = btn.parentElement?.parentElement?.parentElement?.parentElement;
+        if (!details || !(details instanceof HTMLDetailsElement))
+            details = btn.parentElement?.parentElement?.parentElement?.parentElement?.parentElement;
         if (!btn.classList.contains("hidden") && (!details || !(details instanceof HTMLDetailsElement) || details.open)) {
             tBtns.push(btn);
         }
@@ -401,7 +403,17 @@ class Color {
 // Retrieved 2026-03-18, License - CC BY-SA 4.0
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 class Game {
-    static AnimTime = 40;
+    static AnimTime = 60;
+    static MoveEaseStyle = "Linear";
+    static MoveEaseDirection = "InOut";
+    static DropEaseStyle = "Circular";
+    static DropEaseDirection = "In";
+    static get MoveEase() {
+        return Easing[this.MoveEaseStyle][this.MoveEaseDirection];
+    }
+    static get DropEase() {
+        return Easing[this.DropEaseStyle][this.DropEaseDirection];
+    }
     static Anims = true;
     static Physics = false;
     static KeyBinds = {};
@@ -544,7 +556,6 @@ class Game {
             return;
         const moveRes = await Game.CurrentBlock.Move(0, 1);
         if (Game.CurrentBlock && moveRes === false) {
-            console.log(moveRes);
             await Game.CurrentBlock.Stamp();
         }
     }
@@ -700,7 +711,6 @@ class Game {
         // if (await Game.handleClears() && Game.Physics)
         await Game.handleClears();
         Game.RedrawCanvas();
-        console.log("got here");
         Game.CurrentBlock = Game.RandomBlock();
         if (!Game.CurrentBlock.IsValidPosition()) {
             Game.Reset();
@@ -773,7 +783,11 @@ const Settings = {
     GhostBlockOpacity: settingsWin?.querySelector("#settings-ghost-opacity"),
     Width: settingsWin?.querySelector("#settings-game-width"),
     Height: settingsWin?.querySelector("#settings-game-height"),
-    Physics: settingsWin?.querySelector("#settings-physics")
+    Physics: settingsWin?.querySelector("#settings-physics"),
+    MoveEaseStyle: settingsWin?.querySelector("#settings-ease-style-move"),
+    MoveEaseDirection: settingsWin?.querySelector("#settings-ease-dir-move"),
+    DropEaseStyle: settingsWin?.querySelector("#settings-ease-style-drop"),
+    DropEaseDirection: settingsWin?.querySelector("#settings-ease-dir-drop")
 };
 const SettingsBuffer = new Map();
 const settingsTitle = document.getElementById("settings-title");
@@ -857,6 +871,18 @@ function handleSettings() {
                     break;
             }
         }
+        else if (el instanceof HTMLSelectElement) {
+            if (el.classList.contains("ease")) {
+                el.value = getAttr(Game, k);
+                const __defaultVal = el.value;
+                el.addEventListener("change", () => {
+                    UpdateSettingsBuffer(k, { value: el.value, el: el });
+                });
+                RejectSettingsBuffer.Connect(() => {
+                    el.value = getAttr(Game, k) ?? __defaultVal;
+                });
+            }
+        }
     }
 }
 handleSettings();
@@ -930,7 +956,7 @@ class BlockInstance extends Block {
                 this.tween.stop();
             this.tween = new Tween(tData.s)
                 .to(tData.e, Game.AnimTime)
-                .easing(!isInstantDrop ? Easing.Linear.InOut : Easing.Circular.In)
+                .easing(!isInstantDrop ? Game.MoveEase : Game.DropEase)
                 .dynamic(true)
                 .onUpdate(data => {
                 this._x = data.x;
@@ -1233,7 +1259,7 @@ const resizeObserver = new ResizeObserver(onResize);
 resizeObserver.observe(document.body);
 window.addEventListener("resize", onResize);
 window.addEventListener("click", loadSFX);
-window.addEventListener("keydown", event => {
+window.addEventListener("keydown", async (event) => {
     if (event.defaultPrevented || !__sfx_loaded)
         return;
     if (!Game.Running || Game.Paused) {
@@ -1249,6 +1275,8 @@ window.addEventListener("keydown", event => {
             case "c": break;
             default: return;
         }
+        if (document.activeElement.classList.contains("keybind") && document.activeElement.textContent === "...")
+            return event.preventDefault();
         switch (event.key) {
             case "ArrowLeft":
                 if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement)
@@ -1264,10 +1292,16 @@ window.addEventListener("keydown", event => {
                 return focusButton();
             case "z":
             case "c":
-            case "Enter":
-                document.activeElement?.click();
-                return;
             case " ":
+            case "Enter":
+                if (!(document.activeElement instanceof HTMLSelectElement)) {
+                    if (document.activeElement.classList.contains("keybind"))
+                        await sleep(2);
+                    document.activeElement?.click();
+                }
+                else
+                    document.activeElement?.showPicker();
+                return;
             case "Escape":
                 if (!Game.Running)
                     return;
@@ -1388,7 +1422,7 @@ function translateKey(k, reverse = false) {
 document.querySelectorAll("button.keybind").forEach(el => {
     Game.KeyBinds[el.dataset.bind ?? ""] = el.dataset.key ?? "";
     function click(event) {
-        if (event.defaultPrevented || event.key === "Escape") {
+        if (event.key === "Escape") {
             el.textContent = translateKey(el.dataset.key ?? "");
             return;
         }
@@ -1400,23 +1434,34 @@ document.querySelectorAll("button.keybind").forEach(el => {
     }
     el.textContent = translateKey(el.dataset.key ?? "");
     el.addEventListener("click", () => {
-        el.textContent = "…";
+        el.textContent = "...";
         document.addEventListener("keydown", click);
     });
 });
-document.querySelectorAll("input.keyboard-selectable").forEach(el => {
+function preventKeyEvents(el) {
     el.addEventListener("keydown", event => {
-        switch (event.key) {
-            case "Enter":
-            case "ArrowUp":
-            case "ArrowDown":
-                return event.preventDefault();
-            default:
-                return;
+        if (!el.classList.contains("keybind") || el.textContent !== "...") {
+            switch (event.key) {
+                case "Enter":
+                case " ":
+                case "ArrowUp":
+                case "ArrowDown":
+                    return event.preventDefault();
+                case "ArrowLeft":
+                case "ArrowRight":
+                    return !(el instanceof HTMLInputElement) ? event.preventDefault() : undefined;
+                default:
+                    return;
+            }
         }
     });
-    el.addEventListener("focus", () => {
-        el.select();
-    });
+    if (el instanceof HTMLInputElement) {
+        el.addEventListener("focus", () => {
+            el.select();
+        });
+    }
+}
+document.querySelectorAll(".keyboard-selectable").forEach(el => {
+    preventKeyEvents(el);
 });
 // export default { Enum, Game, Color, BlockData, Block, BlockInstance }
