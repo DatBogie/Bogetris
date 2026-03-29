@@ -708,7 +708,6 @@ class Game {
     static async BlockStamped(self) {
         if (self !== Game.CurrentBlock)
             return;
-        // if (await Game.handleClears() && Game.Physics)
         await Game.handleClears();
         Game.RedrawCanvas();
         Game.CurrentBlock = Game.RandomBlock();
@@ -839,7 +838,6 @@ function handleSettings() {
                             return;
                         }
                         const val = (el.classList.contains("int") ? Math.trunc : dummy)(clamp(el.valueAsNumber, min, max));
-                        // setAttr(Game,k,el.classList.contains("percent")? val/max : val);
                         UpdateSettingsBuffer(k, { value: (el.classList.contains("percent") ? val / max : val), funcs: funcs, el: el });
                         el.valueAsNumber = val;
                     });
@@ -851,7 +849,6 @@ function handleSettings() {
                     el.checked = getAttr(Game, k);
                     const _defaultVal = el.checked;
                     el.addEventListener("change", () => {
-                        // setAttr(Game,k,el.checked);
                         UpdateSettingsBuffer(k, { value: el.checked, el: el });
                     });
                     RejectSettingsBuffer.Connect(() => {
@@ -862,7 +859,6 @@ function handleSettings() {
                     el.value = getAttr(Game, k);
                     const __defaultVal = el.value;
                     el.addEventListener("change", () => {
-                        // setAttr(Game,k,el.value);
                         UpdateSettingsBuffer(k, { value: el.value, el: el });
                     });
                     RejectSettingsBuffer.Connect(() => {
@@ -1022,7 +1018,6 @@ class BlockInstance extends Block {
         if (canvas === Game.BlockCanvas && this.LowestValidY > this._y) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.GhostBlockOpacity);
             this._draw(canvas, this.targetPos.x, this.LowestValidY);
-            // this._draw(canvas,Utils.BiasedRound(this._x,orX),Utils.BiasedRound(this.LowestValidY,orY));
         }
     }
     stamping = false;
@@ -1340,7 +1335,6 @@ window.addEventListener("keydown", async (event) => {
 }, true);
 Game.DrawGrid();
 Game.NewGame();
-// Game.StartGame();
 document.getElementById("pause-resume")?.addEventListener("click", () => {
     if (!Game.Running) {
         Game.StartGame();
@@ -1464,4 +1458,3 @@ function preventKeyEvents(el) {
 document.querySelectorAll(".keyboard-selectable").forEach(el => {
     preventKeyEvents(el);
 });
-// export default { Enum, Game, Color, BlockData, Block, BlockInstance }
