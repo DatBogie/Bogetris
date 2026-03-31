@@ -41,16 +41,6 @@ function updateSelectionButtons(detailsSel) {
     PauseBtns = tBtns;
     focusButton();
 }
-function isChildOverflown(el, parent = el.parentElement) {
-    if (!parent)
-        return true;
-    const cRect = el.getBoundingClientRect();
-    const pRect = parent.getBoundingClientRect();
-    return (cRect.top >= pRect.bottom ||
-        cRect.right <= pRect.left ||
-        cRect.bottom <= pRect.top ||
-        cRect.left >= pRect.right);
-}
 function focusButton() {
     setTimeout(() => {
         PauseBtns[PauseMenuSel]?.focus();
@@ -403,7 +393,11 @@ class Color {
 // Retrieved 2026-03-18, License - CC BY-SA 4.0
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 class Game {
-    static AnimTime = 60;
+    static DisableGrid = false;
+    static AnimMoveTime = 60;
+    static AnimDropTime = Game.AnimMoveTime * 2;
+    static AnimClearTime = Math.trunc((Game.AnimMoveTime / 2) * 10);
+    static FixedAnimClearTime = true;
     static MoveEaseStyle = "Linear";
     static MoveEaseDirection = "InOut";
     static DropEaseStyle = "Circular";
@@ -502,6 +496,8 @@ class Game {
     static SpeedMul = 1.0;
     static BaseSpeedMs = 1000.0;
     static GhostBlockOpacity = 0.25;
+    static AnimGhostBlock = false;
+    static RawBlockOpacity = 0.0;
     static Paused = true;
     static CurrentBlock;
     static BgCanvas = new Canvas2D(document.getElementById("bg"));
@@ -579,6 +575,8 @@ class Game {
         Game.BgCanvas.ClearCanvas();
         Game.BgCanvas.Context.fillStyle = "#1e2030";
         Game.BgCanvas.Context.fillRect(Game.GameOffset.X, Game.GameOffset.Y, Game.Width * Game.PixelSize, Game.Height * Game.PixelSize);
+        if (Game.DisableGrid)
+            return;
         Game.GameCanvas.Context.strokeStyle = "#18192680";
         Game.GameCanvas.Context.lineWidth = 1;
         for (let x = 0; x <= Game.Width; x++) {
@@ -649,7 +647,7 @@ class Game {
         for (let x = 0; x < Game.Width; x++) {
             Game._data[y][x] = 0;
             if (Game.Anims) {
-                await sleep(Math.min(Game.AnimTime / 2, 80));
+                await sleep(Game.FixedAnimClearTime ? Game.AnimClearTime / Game.Width : Game.AnimClearTime);
                 Game.RedrawCanvas();
             }
         }
@@ -677,7 +675,7 @@ class Game {
             py++;
             if (Game.Anims) {
                 Game.RedrawCanvas();
-                await sleep(Game.AnimTime);
+                await sleep(Game.FixedAnimClearTime ? Game.AnimClearTime / Game.Width : Game.AnimClearTime);
             }
         }
     }
@@ -776,10 +774,16 @@ class Signal {
 }
 const settingsWin = document.getElementById("settings");
 const Settings = {
+    DisableGrid: settingsWin?.querySelector("#settings-grid-disabled"),
     SpeedMul: settingsWin?.querySelector("#settings-game-speed-mul"),
     Anims: settingsWin?.querySelector("#settings-anims"),
-    AnimTime: settingsWin?.querySelector("#settings-anim-time"),
+    AnimMoveTime: settingsWin?.querySelector("#settings-anim-move-time"),
+    AnimDropTime: settingsWin?.querySelector("#settings-anim-drop-time"),
+    AnimClearTime: settingsWin?.querySelector("#settings-anim-clear-time"),
+    FixedAnimClearTime: settingsWin?.querySelector("#settings-anim-clear-time-fixed"),
     GhostBlockOpacity: settingsWin?.querySelector("#settings-ghost-opacity"),
+    AnimGhostBlock: settingsWin?.querySelector("#settings-ghost-anims"),
+    RawBlockOpacity: settingsWin?.querySelector("#settings-raw-opacity"),
     Width: settingsWin?.querySelector("#settings-game-width"),
     Height: settingsWin?.querySelector("#settings-game-height"),
     Physics: settingsWin?.querySelector("#settings-physics"),
@@ -803,6 +807,7 @@ function UpdateSettingsBuffer(k, data) {
 function WriteSettingsBuffer() {
     for (const [k, v] of SettingsBuffer.entries()) {
         setAttr(Game, k, v.value);
+        console.log(v.funcs);
         if (v.funcs && v.funcs.length !== 0) {
             for (const f of v.funcs) {
                 let x = getAttr(Game, f);
@@ -822,60 +827,61 @@ RejectSettingsBuffer.Connect(() => {
 function handleSettings() {
     for (const [k, el] of Object.entries(Settings)) {
         if (el instanceof HTMLInputElement) {
-            switch (el.type) {
-                case "number":
-                    const min = parseFloat(el.dataset.min ?? "0");
-                    const max = parseFloat(el.dataset.max ?? "100");
-                    const defaultVal = getAttr(Game, k);
-                    if (el.classList.contains("percent"))
-                        el.valueAsNumber = getAttr(Game, k) * max;
-                    else
-                        el.valueAsNumber = getAttr(Game, k);
-                    const funcs = (el.dataset.funcs ?? "").split(",");
-                    el.addEventListener("change", () => {
-                        if (isNaN(el.valueAsNumber)) {
-                            el.valueAsNumber = SettingsBuffer.get(k)?.value ?? (getAttr(Game, k) ?? defaultVal) * (el.classList.contains("percent") ? max : 1);
-                            return;
-                        }
-                        const val = (el.classList.contains("int") ? Math.trunc : dummy)(clamp(el.valueAsNumber, min, max));
-                        UpdateSettingsBuffer(k, { value: (el.classList.contains("percent") ? val / max : val), funcs: funcs, el: el });
-                        el.valueAsNumber = val;
-                    });
-                    RejectSettingsBuffer.Connect(() => {
-                        el.valueAsNumber = (getAttr(Game, k) ?? defaultVal) * (el.classList.contains("percent") ? max : 1);
-                    });
-                    break;
-                case "checkbox":
-                    el.checked = getAttr(Game, k);
-                    const _defaultVal = el.checked;
-                    el.addEventListener("change", () => {
-                        UpdateSettingsBuffer(k, { value: el.checked, el: el });
-                    });
-                    RejectSettingsBuffer.Connect(() => {
-                        el.checked = getAttr(Game, k) ?? _defaultVal;
-                    });
-                    break;
-                default:
-                    el.value = getAttr(Game, k);
-                    const __defaultVal = el.value;
-                    el.addEventListener("change", () => {
-                        UpdateSettingsBuffer(k, { value: el.value, el: el });
-                    });
-                    RejectSettingsBuffer.Connect(() => {
-                        el.value = getAttr(Game, k) ?? __defaultVal;
-                    });
-                    break;
+            if (el.type === "number") {
+                const min = parseFloat(el.dataset.min ?? "0");
+                const max = parseFloat(el.dataset.max ?? "100");
+                const defaultVal = getAttr(Game, k);
+                if (el.classList.contains("percent"))
+                    el.valueAsNumber = getAttr(Game, k) * max;
+                else
+                    el.valueAsNumber = getAttr(Game, k);
+                const funcs = (el.dataset.funcs ?? "").split(",");
+                el.addEventListener("change", () => {
+                    if (isNaN(el.valueAsNumber)) {
+                        el.valueAsNumber = SettingsBuffer.get(k)?.value ?? (getAttr(Game, k) ?? defaultVal) * (el.classList.contains("percent") ? max : 1);
+                        return;
+                    }
+                    const val = (el.classList.contains("int") ? Math.trunc : dummy)(clamp(el.valueAsNumber, min, max));
+                    UpdateSettingsBuffer(k, { value: (el.classList.contains("percent") ? val / max : val), funcs: funcs, el: el });
+                    el.valueAsNumber = val;
+                });
+                RejectSettingsBuffer.Connect(() => {
+                    el.valueAsNumber = (getAttr(Game, k) ?? defaultVal) * (el.classList.contains("percent") ? max : 1);
+                });
+            }
+            else if (el.type === "checkbox") {
+                el.checked = getAttr(Game, k);
+                const defaultVal = el.checked;
+                const funcs = (el.dataset.funcs ?? "").split(",");
+                el.addEventListener("change", () => {
+                    UpdateSettingsBuffer(k, { value: el.checked, el: el, funcs: funcs });
+                });
+                RejectSettingsBuffer.Connect(() => {
+                    el.checked = getAttr(Game, k) ?? defaultVal;
+                });
+            }
+            else {
+                el.value = getAttr(Game, k);
+                const defaultVal = el.value;
+                const funcs = (el.dataset.funcs ?? "").split(",");
+                el.addEventListener("change", () => {
+                    UpdateSettingsBuffer(k, { value: el.value, el: el, funcs: funcs });
+                });
+                RejectSettingsBuffer.Connect(() => {
+                    el.value = getAttr(Game, k) ?? defaultVal;
+                });
             }
         }
         else if (el instanceof HTMLSelectElement) {
             if (el.classList.contains("ease")) {
                 el.value = getAttr(Game, k);
-                const __defaultVal = el.value;
+                const defaultVal = el.value;
+                const funcs = (el.dataset.funcs ?? "").split(",");
                 el.addEventListener("change", () => {
-                    UpdateSettingsBuffer(k, { value: el.value, el: el });
+                    UpdateSettingsBuffer(k, { value: el.value, el: el, funcs: funcs });
                 });
                 RejectSettingsBuffer.Connect(() => {
-                    el.value = getAttr(Game, k) ?? __defaultVal;
+                    el.value = getAttr(Game, k) ?? defaultVal;
                 });
             }
         }
@@ -951,7 +957,7 @@ class BlockInstance extends Block {
             if (this.tween && this.tween.isPlaying())
                 this.tween.stop();
             this.tween = new Tween(tData.s)
-                .to(tData.e, Game.AnimTime)
+                .to(tData.e, !isInstantDrop ? Game.AnimMoveTime : Game.AnimDropTime)
                 .easing(!isInstantDrop ? Game.MoveEase : Game.DropEase)
                 .dynamic(true)
                 .onUpdate(data => {
@@ -1015,9 +1021,14 @@ class BlockInstance extends Block {
         canvas.Context.fillStyle = this.Data.Color.RGBA;
         this._draw(canvas);
         // Draw ghost block
-        if (canvas === Game.BlockCanvas && this.LowestValidY > this._y) {
+        if (Game.GhostBlockOpacity > 0 && canvas === Game.BlockCanvas && this.LowestValidY > this._y) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.GhostBlockOpacity);
-            this._draw(canvas, this.targetPos.x, this.LowestValidY);
+            this._draw(canvas, !Game.AnimGhostBlock ? this.targetPos.x : this._x, this.LowestValidY);
+        }
+        // Draw accublock
+        if (Game.RawBlockOpacity > 0 && canvas === Game.BlockCanvas) {
+            canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.RawBlockOpacity);
+            this._draw(canvas, this.targetPos.x, this.targetPos.y);
         }
     }
     stamping = false;
