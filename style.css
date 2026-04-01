@@ -67,6 +67,10 @@ body {
     transition: filter 200ms ease;
 }
 
+#hold {
+    right: 0;
+}
+
 .game-canvas.paused, .modal.active {
     filter: blur(16px) saturate(120%) brightness(80%);
 }

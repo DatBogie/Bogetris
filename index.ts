@@ -67,6 +67,7 @@ function setAttr(instance:any,attr:string,value:any) : void {
 }
 
 export namespace Enum {
+    export enum GridMode { BG, Grid, Both }
     export class CustomBlockShape {
         static get length() : number {
             let i = 0;
@@ -500,6 +501,7 @@ class Game {
     static readonly GameCanvas:Canvas2D = new Canvas2D(document.getElementById("game") as HTMLCanvasElement);
     static readonly BlockCanvas:Canvas2D = new Canvas2D(document.getElementById("block") as HTMLCanvasElement);
     static readonly StaleCanvas:Canvas2D = new Canvas2D(document.getElementById("stale") as HTMLCanvasElement);
+    static readonly HoldCanvas:Canvas2D = new Canvas2D(document.getElementById("hold") as HTMLCanvasElement);
     private static Level:Enum.Level;
     static get Running() : boolean {
         return Game._running
@@ -540,6 +542,7 @@ class Game {
         Game.BlockCanvas.ClearCanvas();
         Game.StaleCanvas.ClearCanvas();
         Game._data = [];
+        Game.heldBlock = undefined;
         for (let y=0; y<Game.Height; y++) {
             Game._data[y] = [];
             for (let x=0; x<Game.Width; x++)
@@ -571,33 +574,59 @@ class Game {
     private static randBlock() : Block {
         return Utils.PickRandomFromDict(Blocks);
     }
+    private static heldBlock:Block;
+    private static holdCooldown:boolean = false;
+    static HoldBlock() : void {
+        if (Game.holdCooldown) return;
+        Game.holdCooldown = true;
+        if (!Game.heldBlock) {
+            Game.heldBlock = Game.CurrentBlock.toBlock();
+            Game.CurrentBlock = Game.RandomBlock();
+        } else {
+            const buffer = Game.heldBlock;
+            Game.heldBlock = Game.CurrentBlock.toBlock();
+            Game.CurrentBlock = new BlockInstance(buffer);
+        }
+        Game.CurrentBlock.Draw();
+        Game.HoldCanvas.ClearCanvas();
+        // Game.DrawGrid(Game.HoldCanvas,Enum.GridMode.BG);
+        const block = new BlockInstance(Game.heldBlock).Clone();
+        BlockInstance.Draw(block,Game.HoldCanvas,Math.ceil(Game.Width/2),Math.ceil(Game.Height/2),true);
+        Game.DrawGrid(Game.HoldCanvas,Enum.GridMode.Grid,block.Width,block.Height,Math.ceil(Game.Width/2),Math.ceil(Game.Height/2));
+    }
     static RandomBlock() : BlockInstance {
-        this.blockFeed.push(this.randBlock());
-        return new BlockInstance(this.blockFeed.get(0));
+        Game.blockFeed.push(Game.randBlock());
+        return new BlockInstance(Game.blockFeed.get(0));
     }
     static get NextBlock() : Block {
-        return this.blockFeed.get(this.blockFeed.length-1);
+        return Game.blockFeed.get(Game.blockFeed.length-1);
     }
-    static DrawGrid() {
-        Game.GridDrawn = true;
-        Game.GameCanvas.ClearCanvas();
-        Game.BgCanvas.ClearCanvas();
-        Game.BgCanvas.Context.fillStyle = "#1e2030";
-        Game.BgCanvas.Context.fillRect(Game.GameOffset.X,Game.GameOffset.Y,Game.Width*Game.PixelSize,Game.Height*Game.PixelSize);
-        if (Game.DisableGrid) return;
-        Game.GameCanvas.Context.strokeStyle = "#18192680";
-        Game.GameCanvas.Context.lineWidth = 1;
-        for (let x=0; x<=Game.Width; x++) {
-            Game.GameCanvas.Context.beginPath();
-            Game.GameCanvas.Context.moveTo(Game.GameOffset.X+x*Game.PixelSize,Game.GameOffset.Y);
-            Game.GameCanvas.Context.lineTo(Game.GameOffset.X+x*Game.PixelSize,Game.GameOffset.Y+Game.Height*Game.PixelSize);
-            Game.GameCanvas.Context.stroke();
+    static DrawGrid(canvas?:Canvas2D,mode:Enum.GridMode=Enum.GridMode.Both,width?:number,height?:number,sX:number=0,sY:number=0) {
+        const gameCanvas = canvas ?? Game.GameCanvas;
+        const bgCanvas = canvas ?? Game.BgCanvas;
+        if (!canvas) {
+            Game.GridDrawn = true;
+            gameCanvas.ClearCanvas();
+            bgCanvas.ClearCanvas();
         }
-        for (let y=0; y<=Game.Height; y++) {
-            Game.GameCanvas.Context.beginPath();
-            Game.GameCanvas.Context.moveTo(Game.GameOffset.X,Game.GameOffset.Y+y*Game.PixelSize);
-            Game.GameCanvas.Context.lineTo(Game.GameOffset.X+Game.Width*Game.PixelSize,Game.GameOffset.Y+y*Game.PixelSize);
-            Game.GameCanvas.Context.stroke();
+        if (mode === Enum.GridMode.BG || mode === Enum.GridMode.Both) {
+            bgCanvas.Context.fillStyle = "#1e2030";
+            bgCanvas.Context.fillRect(Game.GameOffset.X,Game.GameOffset.Y,Game.Width*Game.PixelSize,Game.Height*Game.PixelSize);
+        }
+        if ((!canvas && Game.DisableGrid) || (mode === Enum.GridMode.BG)) return;
+        gameCanvas.Context.strokeStyle = "#18192680";
+        gameCanvas.Context.lineWidth = 1;
+        for (let x=sX; x<=width? sX+width : Game.Width; x++) {
+            gameCanvas.Context.beginPath();
+            gameCanvas.Context.moveTo(Game.GameOffset.X+x*Game.PixelSize,Game.GameOffset.Y+sY);
+            gameCanvas.Context.lineTo(Game.GameOffset.X+x*Game.PixelSize,Game.GameOffset.Y+sY+(height ?? Game.Height)*Game.PixelSize);
+            gameCanvas.Context.stroke();
+        }
+        for (let y=sY; y<=height? sY+height : Game.Height; y++) {
+            gameCanvas.Context.beginPath();
+            gameCanvas.Context.moveTo(Game.GameOffset.X+sX,Game.GameOffset.Y+y*Game.PixelSize);
+            gameCanvas.Context.lineTo(Game.GameOffset.X+sX+(width ?? Game.Width)*Game.PixelSize,Game.GameOffset.Y+y*Game.PixelSize);
+            gameCanvas.Context.stroke();
         }
     }
     static EraseShape(self:BlockInstance|Game, x?:number, y?:number, shape?:number[][]) {
@@ -702,6 +731,7 @@ class Game {
         return cFlag;
     }
     static async BlockStamped(self:BlockInstance) {
+        Game.holdCooldown = false;
         if (self !== Game.CurrentBlock) return;
         await Game.handleClears();
         Game.RedrawCanvas();
@@ -923,6 +953,12 @@ class BlockInstance extends Block {
     get Y() : number {
         return this._y;
     }
+    get Width() : number {
+        return this.CurrentShape[0].length;
+    }
+    get Height() : number {
+        return this.CurrentShape.length;
+    }
     get CurrentShape() : number[][] {
         return this.Shapes[this.Rotation];
     }
@@ -941,6 +977,19 @@ class BlockInstance extends Block {
     private tween:Tween;
     private targetPos:xyObj;
     private dropping:boolean = false;
+    private isFake:boolean = false;
+    Clone() : BlockInstance {
+        const clone = new BlockInstance(this.toBlock());
+        clone.isFake = true;
+        clone._x = this._x;
+        clone._y = this._y;
+        clone.targetPos = this.targetPos;
+        clone.Rotation = this.Rotation;
+        clone.tween = this.tween;
+        clone.dropping = this.dropping;
+        clone.stamping = this.stamping;
+        return clone;
+    }
     get IsDropping() : boolean {
         return this.dropping;
     }
@@ -1001,7 +1050,12 @@ class BlockInstance extends Block {
         this.Draw();
         return true;
     }
-    private _draw(canvas:Canvas2D=Game.BlockCanvas, x:number=this._x, y:number=this._y) {
+    static Draw(block:BlockInstance,canvas?:Canvas2D,x?:number,y?:number,drawColor?:boolean) {
+        if (!block.isFake) return;
+        block._draw(canvas,x,y,drawColor);
+    }
+    private _draw(canvas:Canvas2D=Game.BlockCanvas, x:number=this._x, y:number=this._y,drawColor:boolean=false) {
+        if (drawColor) canvas.Context.fillStyle = this.Data.Color.RGBA;
         for (const [oY, row] of this.CurrentShape.entries()) {
             for (const [oX, col] of row.entries()) {
                 if (col === 0) continue;
@@ -1060,6 +1114,9 @@ class BlockInstance extends Block {
             }
         }
         return lowestPoint;
+    }
+    toBlock() : Block {
+        return new Block(this.Shapes,this.Data,this.Symbol);
     }
 }
 
@@ -1339,6 +1396,9 @@ window.addEventListener("keydown", async event=>{
             break;
         case Game.KeyBinds.Hard:
             Game.CurrentBlock?.InstantDrop();
+            break;
+        case Game.KeyBinds.Hold:
+            Game.HoldBlock();
             break;
         case "Backspace":
         case "Escape":
