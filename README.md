@@ -10,7 +10,7 @@ APCSP 2026 Create Task Project
 
 ## License
 
-This project is licensed under the [MIT License](https://raw.githubusercontent.com/DatBogie/Tetris_Web/refs/heads/Modding/LICENSE).
+This project is licensed under the [CC BY-SA 4.0 License](https://raw.githubusercontent.com/DatBogie/Tetris_Web/refs/heads/main/LICENSE).
 
 ## Attributions
 
