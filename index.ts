@@ -543,6 +543,8 @@ class Game {
         Game.StaleCanvas.ClearCanvas();
         Game._data = [];
         Game.heldBlock = undefined;
+        Game.holdCooldown = false;
+        Game.HoldCanvas.ClearCanvas();
         for (let y=0; y<Game.Height; y++) {
             Game._data[y] = [];
             for (let x=0; x<Game.Width; x++)
