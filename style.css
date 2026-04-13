@@ -58,8 +58,8 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    width: 100% !important;
+    height: 100% !important;
     transition: filter 200ms ease;
 }
 
@@ -94,9 +94,9 @@ body {
     flex-direction: column;
     gap: 24px;
     aspect-ratio: unset;
-    width: 100% !important;
+    width: 80% !important;
     top: 0;
-    left: 0;
+    left: 10%;
 }
 
 #pause-ind.paused, .modal.active {

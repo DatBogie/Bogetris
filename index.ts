@@ -786,7 +786,7 @@ function clamp(x:number,min:number,max:number) : number {
     return Math.min(Math.max(x,min),max);
 }
 
-function dummy(x:any) : any {
+function dummy(x?:any) : any {
     return x;
 }
 
@@ -1346,21 +1346,34 @@ window.addEventListener("resize",onResize);
 
 window.addEventListener("click",loadSFX)
 
+const heldKeys:Record<string,boolean> = {"Shift":false};
+
+window.addEventListener("keyup",event=>{
+    if (heldKeys[event.key] !== undefined)
+        heldKeys[event.key] = false;
+});
 window.addEventListener("keydown", async event=>{
+    if (heldKeys[event.key] !== undefined)
+        heldKeys[event.key] = true;
+    let eventKey = event.key;
+    if (eventKey === "Tab" && heldKeys.Shift)
+        eventKey = "ShiftTab";
     if (event.defaultPrevented || !__sfx_loaded) return;
     if (!Game.Running || Game.Paused) {
         if (document.activeElement?.classList.contains("keybind") && document.activeElement.textContent === "...")
             return event.preventDefault();
-        switch(event.key) {
+        switch(eventKey) {
             case "ArrowLeft":
                 if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement)
                     return;
+            case "ShiftTab":
             case "ArrowUp":
                 PauseMenuSel = Utils.OverflowOperate(PauseMenuSel,-1,0,PauseBtns.length-1);
                 return focusButton();
             case "ArrowRight":
                 if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement)
                     return;
+            case "Tab":
             case "ArrowDown":
                 PauseMenuSel = Utils.OverflowOperate(PauseMenuSel,1,0,PauseBtns.length-1);
                 return focusButton();
@@ -1527,6 +1540,7 @@ function preventKeyEvents(el:HTMLInputElement|HTMLElement) {
                 case "ArrowUp":
                 case "ArrowDown":
                     return event.preventDefault();
+                case "Tab":
                 case "ArrowLeft":
                 case "ArrowRight":
                     return !(el instanceof HTMLInputElement)? event.preventDefault() : undefined;
