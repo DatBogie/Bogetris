@@ -493,7 +493,7 @@ class Game {
     static SpeedMul:number = 1.0;
     static readonly BaseSpeedMs:number = 1000.0;
     static GhostBlockOpacity:number = 0.25;
-    static AnimGhostBlock:boolean = false;
+    static AnimGhostBlock:boolean = true;
     static RawBlockOpacity:number = 0.0;
     static Paused:boolean = true;
     static CurrentBlock?:BlockInstance;
@@ -928,6 +928,9 @@ class BlockData {
 
 class Block {
     constructor(blockShapes:number[][][], blockData:BlockData, symbol:string) {
+        if (blockShapes.length < 4)
+            for (let i=blockShapes.length; i<4; i++)
+                blockShapes[i] = blockShapes[i-1];
         this.Shapes = blockShapes;
         this.Data = blockData;
         this.Symbol = symbol;
@@ -948,6 +951,7 @@ class BlockInstance extends Block {
     constructor(block:Block) {
         super(block.Shapes, block.Data, block.Symbol);
         this._x = Math.floor(Game.Width/2-this.CurrentShape[0].length/2);
+        this._y = 0-this.HighestPoint.y;
         this.targetPos = {x:this._x, y:this._y};
     }
     private _x:number = 0;
@@ -968,7 +972,7 @@ class BlockInstance extends Block {
         return this.Shapes[this.Rotation];
     }
     Rotation:number = 0;
-    IsValidPosition(x:number=this.targetPos.x, y:number=this.targetPos.y, shape:number[][]=this.CurrentShape) : boolean {
+    IsValidPosition(x:number=this.targetPos?.x ?? 0, y:number=this.targetPos?.y ?? 0, shape:number[][]=this.CurrentShape) : boolean {
         for (const [oY, row] of shape.entries()) {
             for (const [oX, col] of row.entries()) {
                 if (col === 0) continue;
@@ -980,7 +984,7 @@ class BlockInstance extends Block {
         return true;
     }
     private tween:Tween = new Tween([]);
-    private targetPos:xyObj;
+    private targetPos:xyObj|undefined;
     private dropping:boolean = false;
     private isFake:boolean = false;
     Clone() : BlockInstance {
@@ -1000,7 +1004,7 @@ class BlockInstance extends Block {
     }
     async Move(x:number=0, y:number=0,isInstantDrop:boolean=false) : Promise<boolean|undefined> {
         if (this.dropping) return undefined;
-        x+=this.targetPos.x; y+=this.targetPos.y;
+        x+=this.targetPos?.x ?? 0; y+=this.targetPos?.y ?? 0;
         if (!this.IsValidPosition(x,y)) return !this.dropping? false : undefined;
         if (isInstantDrop) this.dropping = true;
         this.targetPos = {x:x,y:y};
@@ -1080,30 +1084,30 @@ class BlockInstance extends Block {
         // Draw ghost block
         if (Game.GhostBlockOpacity > 0 && canvas === Game.BlockCanvas && this.LowestValidY > this._y) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.GhostBlockOpacity);
-            this._draw(canvas,!Game.AnimGhostBlock? this.targetPos.x : this._x,this.LowestValidY);
+            this._draw(canvas,!Game.AnimGhostBlock? this.targetPos?.x : this._x,this.LowestValidY);
         }
         // Draw accublock
         if (Game.RawBlockOpacity > 0 && canvas === Game.BlockCanvas) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.RawBlockOpacity);
-            this._draw(canvas,this.targetPos.x,this.targetPos.y);
+            this._draw(canvas,this.targetPos?.x,this.targetPos?.y);
         }
     }
     private stamping:boolean = false;
     async Stamp() {
         if (this.dropping || this.stamping) return;
         this.stamping = true;
-        [this._x, this._y] = [this.targetPos.x, this.targetPos.y];
+        [this._x, this._y] = [this.targetPos?.x ?? 0, this.targetPos?.y ?? 0];
         this.Draw(Game.StaleCanvas);
         Game.WriteShape(this, this._x, this._y, this.CurrentShape);
         await Game.BlockStamped(this);
         this.stamping = false;
     }
     async InstantDrop() {
-        await this.Move(0,this.LowestValidY-(this.targetPos.y),true);
+        await this.Move(0,this.LowestValidY-(this.targetPos?.y ?? 0),true);
         await this.Stamp();
     }
     private get LowestValidY() : number {
-        let y = this.targetPos.y;
+        let y = this.targetPos?.y ?? 0;
         while (true) {
             y++;
             if (!this.IsValidPosition(undefined,y)) {
@@ -1113,10 +1117,20 @@ class BlockInstance extends Block {
         }
         return y;
     }
-    private get LowestPoint() : {x:number, y:number} {
+    private get HighestPoint() : xyObj {
+        let highestPoint = { x: 0, y: 0 };
+        for (const [oY, row] of this.CurrentShape.entries()) {
+            for (const [oX, col] of row.entries()) {
+                if (col === 0) continue;
+                return { x: oX, y: oY };
+            }
+        }
+        return highestPoint;
+    }
+    private get LowestPoint() : xyObj {
         let lowestPoint = { x: 0, y: 0 };
         for (const [oY, row] of this.CurrentShape.entries()) {
-            if (oY < lowestPoint.y) continue;
+            if (oY < lowestPoint.y) break;
             for (const [oX, col] of row.entries()) {
                 if (col === 0) continue;
                 lowestPoint = { x: oX, y: oY };
@@ -1304,6 +1318,10 @@ const Blocks:Record<string,Block> = {
             ]
         ],
         new BlockData("#f5a97f"), "L"
+    ),
+    ".": new Block(
+        [[[1]]],
+        new BlockData("#ffffff"), "."
     )
 }
 
@@ -1340,9 +1358,9 @@ function onResize() {
     });
 }
 
-const resizeObserver = new ResizeObserver(onResize);
-resizeObserver.observe(document.body);
-window.addEventListener("resize",onResize);
+// const resizeObserver = new ResizeObserver(onResize);
+// resizeObserver.observe(document.body);
+// window.addEventListener("resize",onResize);
 
 window.addEventListener("click",loadSFX)
 

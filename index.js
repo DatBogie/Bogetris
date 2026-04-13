@@ -534,7 +534,7 @@ class Game {
     static SpeedMul = 1.0;
     static BaseSpeedMs = 1000.0;
     static GhostBlockOpacity = 0.25;
-    static AnimGhostBlock = false;
+    static AnimGhostBlock = true;
     static RawBlockOpacity = 0.0;
     static Paused = true;
     static CurrentBlock;
@@ -982,6 +982,9 @@ class BlockData {
 }
 class Block {
     constructor(blockShapes, blockData, symbol) {
+        if (blockShapes.length < 4)
+            for (let i = blockShapes.length; i < 4; i++)
+                blockShapes[i] = blockShapes[i - 1];
         this.Shapes = blockShapes;
         this.Data = blockData;
         this.Symbol = symbol;
@@ -997,6 +1000,7 @@ class BlockInstance extends Block {
     constructor(block) {
         super(block.Shapes, block.Data, block.Symbol);
         this._x = Math.floor(Game.Width / 2 - this.CurrentShape[0].length / 2);
+        this._y = 0 - this.HighestPoint.y;
         this.targetPos = { x: this._x, y: this._y };
     }
     _x = 0;
@@ -1017,7 +1021,7 @@ class BlockInstance extends Block {
         return this.Shapes[this.Rotation];
     }
     Rotation = 0;
-    IsValidPosition(x = this.targetPos.x, y = this.targetPos.y, shape = this.CurrentShape) {
+    IsValidPosition(x = this.targetPos?.x ?? 0, y = this.targetPos?.y ?? 0, shape = this.CurrentShape) {
         for (const [oY, row] of shape.entries()) {
             for (const [oX, col] of row.entries()) {
                 if (col === 0)
@@ -1052,8 +1056,8 @@ class BlockInstance extends Block {
     async Move(x = 0, y = 0, isInstantDrop = false) {
         if (this.dropping)
             return undefined;
-        x += this.targetPos.x;
-        y += this.targetPos.y;
+        x += this.targetPos?.x ?? 0;
+        y += this.targetPos?.y ?? 0;
         if (!this.IsValidPosition(x, y))
             return !this.dropping ? false : undefined;
         if (isInstantDrop)
@@ -1142,12 +1146,12 @@ class BlockInstance extends Block {
         // Draw ghost block
         if (Game.GhostBlockOpacity > 0 && canvas === Game.BlockCanvas && this.LowestValidY > this._y) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.GhostBlockOpacity);
-            this._draw(canvas, !Game.AnimGhostBlock ? this.targetPos.x : this._x, this.LowestValidY);
+            this._draw(canvas, !Game.AnimGhostBlock ? this.targetPos?.x : this._x, this.LowestValidY);
         }
         // Draw accublock
         if (Game.RawBlockOpacity > 0 && canvas === Game.BlockCanvas) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.RawBlockOpacity);
-            this._draw(canvas, this.targetPos.x, this.targetPos.y);
+            this._draw(canvas, this.targetPos?.x, this.targetPos?.y);
         }
     }
     stamping = false;
@@ -1155,18 +1159,18 @@ class BlockInstance extends Block {
         if (this.dropping || this.stamping)
             return;
         this.stamping = true;
-        [this._x, this._y] = [this.targetPos.x, this.targetPos.y];
+        [this._x, this._y] = [this.targetPos?.x ?? 0, this.targetPos?.y ?? 0];
         this.Draw(Game.StaleCanvas);
         Game.WriteShape(this, this._x, this._y, this.CurrentShape);
         await Game.BlockStamped(this);
         this.stamping = false;
     }
     async InstantDrop() {
-        await this.Move(0, this.LowestValidY - (this.targetPos.y), true);
+        await this.Move(0, this.LowestValidY - (this.targetPos?.y ?? 0), true);
         await this.Stamp();
     }
     get LowestValidY() {
-        let y = this.targetPos.y;
+        let y = this.targetPos?.y ?? 0;
         while (true) {
             y++;
             if (!this.IsValidPosition(undefined, y)) {
@@ -1176,11 +1180,22 @@ class BlockInstance extends Block {
         }
         return y;
     }
+    get HighestPoint() {
+        let highestPoint = { x: 0, y: 0 };
+        for (const [oY, row] of this.CurrentShape.entries()) {
+            for (const [oX, col] of row.entries()) {
+                if (col === 0)
+                    continue;
+                return { x: oX, y: oY };
+            }
+        }
+        return highestPoint;
+    }
     get LowestPoint() {
         let lowestPoint = { x: 0, y: 0 };
         for (const [oY, row] of this.CurrentShape.entries()) {
             if (oY < lowestPoint.y)
-                continue;
+                break;
             for (const [oX, col] of row.entries()) {
                 if (col === 0)
                     continue;
@@ -1347,7 +1362,8 @@ const Blocks = {
             [0, 1, 0],
             [0, 1, 0]
         ]
-    ], new BlockData("#f5a97f"), "L")
+    ], new BlockData("#f5a97f"), "L"),
+    ".": new Block([[[1]]], new BlockData("#ffffff"), ".")
 };
 class ModEngine {
     static ModList = {};
@@ -1382,9 +1398,9 @@ function onResize() {
         }
     });
 }
-const resizeObserver = new ResizeObserver(onResize);
-resizeObserver.observe(document.body);
-window.addEventListener("resize", onResize);
+// const resizeObserver = new ResizeObserver(onResize);
+// resizeObserver.observe(document.body);
+// window.addEventListener("resize",onResize);
 window.addEventListener("click", loadSFX);
 const heldKeys = { "Shift": false };
 window.addEventListener("keyup", event => {
