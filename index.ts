@@ -1318,10 +1318,6 @@ const Blocks:Record<string,Block> = {
             ]
         ],
         new BlockData("#f5a97f"), "L"
-    ),
-    ".": new Block(
-        [[[1]]],
-        new BlockData("#ffffff"), "."
     )
 }
 
