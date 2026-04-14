@@ -54,7 +54,7 @@ function getAttr(instance, attr) {
 function setAttr(instance, attr, value) {
     instance[attr] = value;
 }
-export var Enum;
+var Enum;
 (function (Enum) {
     let GridMode;
     (function (GridMode) {
@@ -431,6 +431,7 @@ class FeedtapeArray {
     }
 }
 class Game {
+    static AudioVol = 100;
     static DisableGrid = false;
     static AnimMoveTime = 60;
     static AnimDropTime = Game.AnimMoveTime * 2;
@@ -859,6 +860,7 @@ class Signal {
 }
 const settingsWin = document.getElementById("settings");
 const Settings = {
+    AudioVol: settingsWin?.querySelector("#settings-audio-vol"),
     DisableGrid: settingsWin?.querySelector("#settings-grid-disabled"),
     SpeedMul: settingsWin?.querySelector("#settings-game-speed-mul"),
     Anims: settingsWin?.querySelector("#settings-anims"),
@@ -880,6 +882,9 @@ const Settings = {
 const SettingsBuffer = new Map();
 const settingsTitle = document.getElementById("settings-title");
 function UpdateSettingsBuffer(k, data) {
+    const label = document.getElementById(data.el.id + "-label");
+    if (label)
+        label.textContent = data.value;
     if (getAttr(Game, k) === data.value) {
         SettingsBuffer.delete(k);
         if (SettingsBuffer.size === 0)
@@ -912,8 +917,8 @@ function handleSettings() {
     for (const [k, el] of Object.entries(Settings)) {
         if (el instanceof HTMLInputElement) {
             if (el.type === "number") {
-                const min = parseFloat(el.dataset.min ?? "0");
-                const max = parseFloat(el.dataset.max ?? "100");
+                const min = parseFloat(el.min ?? "0");
+                const max = parseFloat(el.max ?? "100");
                 const defaultVal = getAttr(Game, k);
                 if (el.classList.contains("percent"))
                     el.valueAsNumber = getAttr(Game, k) * max;
@@ -1382,9 +1387,9 @@ function onResize() {
         }
     });
 }
-const resizeObserver = new ResizeObserver(onResize);
-resizeObserver.observe(document.body);
-window.addEventListener("resize", onResize);
+// const resizeObserver = new ResizeObserver(onResize);
+// resizeObserver.observe(document.body);
+// window.addEventListener("resize",onResize);
 window.addEventListener("click", loadSFX);
 window.addEventListener("keydown", async (event) => {
     if (event.defaultPrevented || !__sfx_loaded)
@@ -1394,14 +1399,30 @@ window.addEventListener("keydown", async (event) => {
             return event.preventDefault();
         switch (event.key) {
             case "ArrowLeft":
-                if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement)
-                    return;
+                if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement) {
+                    if (PauseBtns[PauseMenuSel].type !== "range") {
+                        return;
+                    }
+                    else {
+                        const val = PauseBtns[PauseMenuSel];
+                        val.value = clamp(parseFloat(val.value) - (parseFloat(val.step) || 1), parseFloat(val.min), parseFloat(val.max)).toString();
+                        return event.preventDefault();
+                    }
+                }
             case "ArrowUp":
                 PauseMenuSel = Utils.OverflowOperate(PauseMenuSel, -1, 0, PauseBtns.length - 1);
                 return focusButton();
             case "ArrowRight":
-                if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement)
-                    return;
+                if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement) {
+                    if (PauseBtns[PauseMenuSel].type !== "range") {
+                        return;
+                    }
+                    else {
+                        const val = PauseBtns[PauseMenuSel];
+                        val.value = clamp(parseFloat(val.value) + (parseFloat(val.step) || 1), parseFloat(val.min), parseFloat(val.max)).toString();
+                        return event.preventDefault();
+                    }
+                }
             case "ArrowDown":
                 PauseMenuSel = Utils.OverflowOperate(PauseMenuSel, 1, 0, PauseBtns.length - 1);
                 return focusButton();
