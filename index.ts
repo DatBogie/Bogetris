@@ -1376,10 +1376,12 @@ window.addEventListener("click",loadSFX)
 function getRangeStep(range:HTMLInputElement) {
     const int:boolean = range.classList.contains("int");
     let step = ((int? parseInt : parseFloat)(range.step)) || 1;
-    if (heldKeys.Shift)
-        step = parseFloat(range.dataset.shiftStep ?? "") || (step*10);
-    if (heldKeys.Control || heldKeys.Meta)
+    if (heldKeys.Shift && (heldKeys.Control || heldKeys.Meta))
         step=Math.abs(parseFloat(range.max))+Math.abs(parseFloat(range.min));
+    else if (heldKeys.Shift)
+        step = parseFloat(range.dataset.shiftStep ?? "") || (step*5);
+    else if (heldKeys.Control || heldKeys.Meta)
+        step = (Math.abs(parseFloat(range.max))+Math.abs(parseFloat(range.min)))/2;
     return (int? Math.round : dummy)(step);
 }
 function stepRange(range:HTMLInputElement,dir:number=1) : number {

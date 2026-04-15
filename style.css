@@ -224,6 +224,7 @@ input[type="range"] {
     position: relative;
     margin: 0;
     top: 3.5px;
+    width: 100px;
 }
 
 span, li {
