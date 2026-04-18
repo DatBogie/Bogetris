@@ -455,6 +455,8 @@ class FeedtapeArray {
     }
 }
 class Game {
+    static KeyRepeatInterval = 75;
+    static KeyRepeatDelay = 125;
     static AudioVol = 100;
     static DisableGrid = false;
     static AnimMoveTime = 60;
@@ -914,6 +916,8 @@ class Signal {
 }
 const settingsWin = document.getElementById("settings");
 const Settings = {
+    KeyRepeatDelay: settingsWin?.querySelector("#settings-key-repeat-delay"),
+    KeyRepeatInterval: settingsWin?.querySelector("#settings-key-repeat-int"),
     AudioVol: settingsWin?.querySelector("#settings-audio-vol"),
     DisableGrid: settingsWin?.querySelector("#settings-grid-disabled"),
     SpeedMul: settingsWin?.querySelector("#settings-game-speed-mul"),
@@ -1482,13 +1486,7 @@ function stepRange(range, dir = 1) {
     return clamp((int ? parseInt : parseFloat)(range.value) + (getRangeStep(range) * dir), (int ? parseInt : parseFloat)(range.min), (int ? parseInt : parseFloat)(range.max));
 }
 const heldKeys = { "Shift": false, "Control": false, "Meta": false };
-window.addEventListener("keyup", event => {
-    if (heldKeys[event.key] !== undefined)
-        heldKeys[event.key] = false;
-});
-window.addEventListener("keydown", async (event) => {
-    if (heldKeys[event.key] !== undefined)
-        heldKeys[event.key] = true;
+async function handleKeypress(event) {
     let eventKey = event.key;
     if (eventKey === "Tab" && heldKeys.Shift)
         eventKey = "ShiftTab";
@@ -1542,8 +1540,11 @@ window.addEventListener("keydown", async (event) => {
                 else
                     document.activeElement?.showPicker();
                 return;
-            case "Escape":
             case "Backspace":
+                if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement)
+                    if (PauseBtns[PauseMenuSel].type !== "range")
+                        return;
+            case "Escape":
                 for (const el of PauseBtns.values()) {
                     if (el?.classList?.contains("modal-back"))
                         return el?.click();
@@ -1585,6 +1586,25 @@ window.addEventListener("keydown", async (event) => {
         default: return console.log(event.key);
     }
     event.preventDefault();
+}
+window.addEventListener("keyup", event => {
+    heldKeys[event.key] = false;
+});
+window.addEventListener("keydown", async (event) => {
+    if (heldKeys[event.key])
+        return;
+    heldKeys[event.key] = true;
+    handleKeypress(event);
+    setTimeout(() => {
+        if (!heldKeys[event.key])
+            return;
+        var id;
+        id = setInterval(() => {
+            if (!heldKeys[event.key])
+                return clearInterval(id);
+            handleKeypress(new KeyboardEvent("keydown", { key: event.key }));
+        }, Game.KeyRepeatInterval);
+    }, Game.KeyRepeatDelay);
 }, true);
 Game.DrawGrid();
 Game.NewGame();
