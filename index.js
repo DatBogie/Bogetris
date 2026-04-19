@@ -1691,20 +1691,23 @@ window.addEventListener("keyup", event => {
     heldKeys[event.key] = false;
 });
 window.addEventListener("keydown", async (event) => {
-    if (heldKeys[event.key])
+    const paused = Game.Paused;
+    if (!paused && heldKeys[event.key])
         return;
     heldKeys[event.key] = true;
     handleKeypress(event);
-    setTimeout(() => {
-        if (!heldKeys[event.key])
-            return;
-        var id;
-        id = setInterval(() => {
+    if (!paused) {
+        setTimeout(() => {
             if (!heldKeys[event.key])
-                return clearInterval(id);
-            handleKeypress(new KeyboardEvent("keydown", { key: event.key }));
-        }, Game.KeyRepeatInterval);
-    }, Game.KeyRepeatDelay);
+                return;
+            var id;
+            id = setInterval(() => {
+                if (!heldKeys[event.key])
+                    return clearInterval(id);
+                handleKeypress(new KeyboardEvent("keydown", { key: event.key }));
+            }, Game.KeyRepeatInterval);
+        }, Game.KeyRepeatDelay);
+    }
 }, true);
 Game.DrawGrid();
 Game.NewGame();
