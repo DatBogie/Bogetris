@@ -1636,6 +1636,7 @@ function stepRange(range, dir = 1) {
     return clamp((int ? parseInt : parseFloat)(range.value) + (getRangeStep(range) * dir), (int ? parseInt : parseFloat)(range.min), (int ? parseInt : parseFloat)(range.max));
 }
 const heldKeys = { "Shift": false, "Control": false, "Meta": false };
+const keyThreads = {};
 async function handleKeypress(event) {
     let eventKey = event.key;
     if (eventKey === "Tab" && heldKeys.Shift)
@@ -1742,6 +1743,10 @@ async function handleKeypress(event) {
 }
 window.addEventListener("keyup", event => {
     heldKeys[event.key] = false;
+    if (keyThreads[event.key]) {
+        clearTimeout(keyThreads[event.key]);
+        keyThreads[event.key] = undefined;
+    }
 });
 window.addEventListener("keydown", async (event) => {
     const paused = Game.Paused;
@@ -1751,7 +1756,7 @@ window.addEventListener("keydown", async (event) => {
     handleKeypress(event);
     const isMoveKey = event.key === Game.KeyBinds.Left || event.key === Game.KeyBinds.Right || event.key === Game.KeyBinds.Soft;
     if (!paused) {
-        setTimeout(() => {
+        keyThreads[event.key] = setTimeout(() => {
             if (!heldKeys[event.key])
                 return;
             var id;

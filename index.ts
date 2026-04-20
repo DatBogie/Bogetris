@@ -1597,6 +1597,7 @@ function stepRange(range:HTMLInputElement,dir:number=1) : number {
 }
 
 const heldKeys:Record<string,boolean> = { "Shift":false, "Control":false, "Meta":false };
+const keyThreads:Record<string,number|undefined> = {};
 
 async function handleKeypress(event:KeyboardEvent) {
     let eventKey = event.key;
@@ -1697,6 +1698,10 @@ async function handleKeypress(event:KeyboardEvent) {
 
 window.addEventListener("keyup",event=>{
     heldKeys[event.key] = false;
+    if (keyThreads[event.key]) {
+        clearTimeout(keyThreads[event.key]);
+        keyThreads[event.key] = undefined;
+    }
 });
 window.addEventListener("keydown", async event=>{
     const paused = Game.Paused;
@@ -1705,7 +1710,7 @@ window.addEventListener("keydown", async event=>{
     handleKeypress(event);
     const isMoveKey = event.key === Game.KeyBinds.Left || event.key === Game.KeyBinds.Right || event.key === Game.KeyBinds.Soft;
     if (!paused) {
-        setTimeout(()=>{
+        keyThreads[event.key] = setTimeout(()=>{
             if (!heldKeys[event.key]) return;
             var id:number;
             id = setInterval(()=>{
