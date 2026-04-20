@@ -138,8 +138,12 @@
                             <summary class="center keyboard-selectable">Keybinds</summary>
                             <li class="details-content">
                                 <ul class="layout left-align">
+                                    <li title="Delay between repeated movement presses.&NewLine;Disable repeating inputs with '0'."><span>Move Key Repeat Interval: </span><input id="settings-key-repeat-move-int" type="number" class="keyboard-selectable" min="0" max="1000"><span>ms</span></li>
+                                    <li title="Delay before starting to repeat movement presses (will cancel if key is released during this time)"><span>Move Key Repeat Start Delay: </span><input id="settings-key-repeat-move-delay" type="number" class="keyboard-selectable" min="0" max="1000"><span>ms</span></li>
+                                    <hr>
                                     <li title="Delay between repeated presses.&NewLine;Disable repeating inputs with '0'."><span>Key Repeat Interval: </span><input id="settings-key-repeat-int" type="number" class="keyboard-selectable" min="0" max="1000"><span>ms</span></li>
                                     <li title="Delay before starting to repeat presses (will cancel if key is released during this time)"><span>Key Repeat Start Delay: </span><input id="settings-key-repeat-delay" type="number" class="keyboard-selectable" min="0" max="1000"><span>ms</span></li>
+                                    <hr>
                                     <li><span>Move Left: </span><button class="keybind keyboard-selectable" data-bind="Left" data-key="ArrowLeft"></button></li>
                                     <li><span>Move Right: </span><button class="keybind keyboard-selectable" data-bind="Right" data-key="ArrowRight"></button></li>
                                     <li><span>Soft Drop: </span><button class="keybind keyboard-selectable" data-bind="Soft" data-key="ArrowDown"></button></li>

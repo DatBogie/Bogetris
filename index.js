@@ -78,8 +78,56 @@ function getAttr(instance, attr) {
 function setAttr(instance, attr, value) {
     instance[attr] = value;
 }
+class ArrayWrapper {
+    constructor(data) {
+        this.data = Array.from(data);
+    }
+    data;
+    get length() {
+        return this.data.length;
+    }
+    push(...items) {
+        this.data.push(items);
+    }
+    pop() {
+        return this.data.pop();
+    }
+    get(index) {
+        return this.data[index];
+    }
+    set(index, value) {
+        this.data[index] = value;
+    }
+    indexOf(searchElement, fromIndex) {
+        return this.data.indexOf(searchElement, fromIndex);
+    }
+    toString() {
+        return this.data.toString();
+    }
+}
+class InfiniteArray extends ArrayWrapper {
+    get(index) {
+        if (new NumberRange(0, this.length - 1).inRange(index))
+            return this.data[index];
+        return this.data[this.length - 1];
+    }
+    toString() {
+        return this.data.toString();
+    }
+}
 var Enum;
 (function (Enum) {
+    class BaseScores {
+        static Soft = 1;
+        static Hard = 2;
+        static Clears = new InfiniteArray([
+            100,
+            300,
+            500,
+            800
+        ]);
+    }
+    Enum.BaseScores = BaseScores;
     class ModeOperation {
         static Set = (x, y) => y;
         static Add = (x, y) => x + y;
@@ -401,37 +449,6 @@ class Color {
 // Posted by Dan Dascalescu, modified by community. See post 'Timeline' for change history
 // Retrieved 2026-03-18, License - CC BY-SA 4.0
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-class ArrayWrapper {
-    constructor(data) {
-        this.data = Array.from(data);
-    }
-    data;
-    get length() {
-        return this.data.length;
-    }
-    push(...items) {
-        this.data.push(items);
-    }
-    pop() {
-        return this.data.pop();
-    }
-    get(index) {
-        return this.data[index];
-    }
-    set(index, value) {
-        this.data[index] = value;
-    }
-    indexOf(searchElement, fromIndex) {
-        return this.data.indexOf(searchElement, fromIndex);
-    }
-}
-class InfiniteArray extends ArrayWrapper {
-    get(index) {
-        if (new NumberRange(0, this.length).inRange(index))
-            return this.data[index];
-        return this.data[this.length - 1];
-    }
-}
 class FeedtapeArray {
     constructor(length) {
         this.data = new Array(length);
@@ -478,17 +495,23 @@ const scoreGatePercentText = document.getElementById("score-gate-percent");
 class Game {
     static score = 0;
     static set Score(score) {
-        this.score = score * this.Level.ScoreMultiplier();
-        scoreText.textContent = score.toString();
-        scoreGateRelText.textContent = (this.ScoreGate - score).toString();
-        scoreGatePercentText.textContent = Math.trunc((score / this.ScoreGate) * 100).toString();
+        Game.score = Math.round(score * Game.Level.ScoreMultiplier());
+        if (Game.score >= Game.ScoreGate) {
+            Game.score -= Game.ScoreGate;
+            Game.Level = Game.LevelIndex + 1;
+        }
+        scoreText.textContent = Game.Score.toString();
+        scoreGateRelText.textContent = (Game.ScoreGate - Game.score).toString();
+        scoreGatePercentText.textContent = Math.trunc((Game.score / Game.ScoreGate) * 100).toString();
     }
     static get Score() {
-        return this.score;
+        return Game.score;
     }
     static ScoreGate;
-    static KeyRepeatInterval = 75;
-    static KeyRepeatDelay = 125;
+    static KeyRepeatInterval = 150;
+    static KeyRepeatDelay = 250;
+    static MoveKeyRepeatInterval = 75;
+    static MoveKeyRepeatDelay = 125;
     static AudioVol = 100;
     static DisableGrid = false;
     static AnimMoveTime = 60;
@@ -500,10 +523,10 @@ class Game {
     static DropEaseStyle = "Circular";
     static DropEaseDirection = "In";
     static get MoveEase() {
-        return Easing[this.MoveEaseStyle][this.MoveEaseDirection];
+        return Easing[Game.MoveEaseStyle][Game.MoveEaseDirection];
     }
     static get DropEase() {
-        return Easing[this.DropEaseStyle][this.DropEaseDirection];
+        return Easing[Game.DropEaseStyle][Game.DropEaseDirection];
     }
     static Anims = true;
     static Physics = false;
@@ -678,7 +701,7 @@ class Game {
     static async GameTick() {
         if (Game.Paused)
             return;
-        const moveRes = await Game.CurrentBlock?.Move(0, 1);
+        const moveRes = await Game.CurrentBlock?.Move(0, 1, undefined, true);
         if (Game.CurrentBlock && moveRes === false) {
             await Game.CurrentBlock.Stamp();
         }
@@ -970,6 +993,8 @@ const settingsWin = document.getElementById("settings");
 const Settings = {
     KeyRepeatDelay: settingsWin?.querySelector("#settings-key-repeat-delay"),
     KeyRepeatInterval: settingsWin?.querySelector("#settings-key-repeat-int"),
+    MoveKeyRepeatDelay: settingsWin?.querySelector("#settings-key-repeat-move-delay"),
+    MoveKeyRepeatInterval: settingsWin?.querySelector("#settings-key-repeat-move-int"),
     AudioVol: settingsWin?.querySelector("#settings-audio-vol"),
     DisableGrid: settingsWin?.querySelector("#settings-grid-disabled"),
     SpeedMul: settingsWin?.querySelector("#settings-game-speed-mul"),
@@ -1126,7 +1151,7 @@ class Level {
     speed;
     scoreGate;
     scoreMultiplier = function (index) {
-        return 1 + index / 25;
+        return 1 + (index / 25);
     };
     ScoreMultiplier() {
         return this.scoreMultiplier(Levels.indexOf(this));
@@ -1139,7 +1164,7 @@ class Level {
         return clamp(this.SpeedMode(Game.LevelSpeed, this.speed), this.SpeedRange.Min, this.SpeedRange.Max);
     }
     get ScoreGate() {
-        return clamp(this.ScoreGateMode(Game.ScoreGate, this.scoreGate), this.ScoreGateRange.Min, this.ScoreGateRange.Max);
+        return Math.round(clamp(this.ScoreGateMode(Game.ScoreGate, this.scoreGate), this.ScoreGateRange.Min, this.ScoreGateRange.Max));
     }
 }
 class Block {
@@ -1162,7 +1187,7 @@ class BlockInstance extends Block {
     constructor(block) {
         super(block.Shapes, block.Data, block.Symbol);
         this._x = Math.floor(Game.Width / 2 - this.CurrentShape[0].length / 2);
-        this._y = 0 - this.HighestPoint.Y;
+        // this._y = 0-this.HighestPoint.Y;
         this.targetPos = new Point(this._x, this._y);
     }
     _x = 0;
@@ -1218,7 +1243,7 @@ class BlockInstance extends Block {
     get IsDropping() {
         return this.dropping;
     }
-    async Move(x = 0, y = 0, isInstantDrop = false) {
+    async Move(x = 0, y = 0, isInstantDrop = false, isTickedDrop = false) {
         if (this.dropping)
             return undefined;
         x += this.targetPos?.X ?? 0;
@@ -1272,12 +1297,31 @@ class BlockInstance extends Block {
     }
     Rotate(reverse = false) {
         let dir = (reverse) ? -1 : 1;
-        const oldRot = this.Rotation;
-        this.Rotation = Utils.OverflowOperate(this.Rotation, dir, 0, 3);
-        if (!this.IsValidPosition()) {
-            this.Rotation = oldRot;
+        const newRot = Utils.OverflowOperate(this.Rotation, dir, 0, 3);
+        if (!this.IsValidPosition(undefined, undefined, this.Shapes[newRot])) {
+            for (let i = 1; i <= this.Shapes[newRot][0].length; i++) {
+                if ((this.targetPos?.X ?? 0) - i < 0)
+                    break;
+                console.log(i, this.IsValidPosition((this.targetPos?.X ?? 0) - i, undefined, this.Shapes[newRot]));
+                if (this.IsValidPosition((this.targetPos?.X ?? 0) - i, undefined, this.Shapes[newRot])) {
+                    console.log((this.targetPos?.X ?? 0) - i);
+                    console.log("left");
+                    this.Rotation = newRot;
+                    this._x = (this.targetPos?.X ?? 0) - i;
+                    this.Draw();
+                    return true;
+                }
+            }
+            // if (this.IsValidPosition((this.targetPos?.X ?? 0)+1,undefined,this.Shapes[newRot])) {
+            //     console.log("right");
+            //     this.Rotation = newRot;
+            //     this._x = (this.targetPos?.X ?? 0)+1;
+            //     this.Draw();
+            //     return true;
+            // }
             return false;
         }
+        this.Rotation = newRot;
         this.Draw();
         return true;
     }
@@ -1331,7 +1375,9 @@ class BlockInstance extends Block {
         this.stamping = false;
     }
     async InstantDrop() {
-        await this.Move(0, this.LowestValidY - (this.targetPos?.Y ?? 0), true);
+        const y = this.LowestValidY - (this.targetPos?.Y ?? 0);
+        Game.Score += y * Enum.BaseScores.Hard;
+        await this.Move(0, y, true);
         await this.Stamp();
     }
     get LowestValidY() {
@@ -1374,8 +1420,8 @@ class BlockInstance extends Block {
     }
 }
 const Levels = new InfiniteArray([
-    new Level("Level 0", 1.0, 0, Enum.ModeOperation.Set, Enum.ModeOperation.Set),
-    new Level("Level 1", 1.25, 1000, Enum.ModeOperation.Multiply, Enum.ModeOperation.Set),
+    new Level("a", 1.0, 0, Enum.ModeOperation.Set, Enum.ModeOperation.Set),
+    new Level("b", 1.25, 1000, Enum.ModeOperation.Multiply, Enum.ModeOperation.Set),
 ]);
 const Blocks = {
     "I": new Block([
@@ -1665,7 +1711,10 @@ async function handleKeypress(event) {
             Game.CurrentBlock?.Move(1, 0);
             break;
         case Game.KeyBinds.Soft:
-            Game.CurrentBlock?.Move(0, 1);
+            Game.CurrentBlock?.Move(0, 1).then(success => {
+                if (success)
+                    Game.Score += Enum.BaseScores.Soft;
+            });
             break;
         case Game.KeyBinds.RC:
             Game.CurrentBlock?.Rotate();
@@ -1696,6 +1745,7 @@ window.addEventListener("keydown", async (event) => {
         return;
     heldKeys[event.key] = true;
     handleKeypress(event);
+    const isMoveKey = event.key === Game.KeyBinds.Left || event.key === Game.KeyBinds.Right || event.key === Game.KeyBinds.Soft;
     if (!paused) {
         setTimeout(() => {
             if (!heldKeys[event.key])
@@ -1705,8 +1755,8 @@ window.addEventListener("keydown", async (event) => {
                 if (!heldKeys[event.key])
                     return clearInterval(id);
                 handleKeypress(new KeyboardEvent("keydown", { key: event.key }));
-            }, Game.KeyRepeatInterval);
-        }, Game.KeyRepeatDelay);
+            }, isMoveKey ? Game.MoveKeyRepeatInterval : Game.KeyRepeatInterval);
+        }, isMoveKey ? Game.MoveKeyRepeatDelay : Game.KeyRepeatDelay);
     }
 }, true);
 Game.DrawGrid();

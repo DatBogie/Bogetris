@@ -87,7 +87,56 @@ function setAttr(instance:any,attr:string,value:any) : void {
     instance[attr] = value;
 }
 
+class ArrayWrapper<T> {
+    constructor(data:T[]) {
+        this.data = Array.from(data);
+    }
+    protected readonly data:Array<T>;
+    get length() : number {
+        return this.data.length;
+    }
+    push(...items:never) {
+        this.data.push(items);
+    }
+    pop() : T|undefined {
+        return this.data.pop();
+    }
+    get(index:number) : T {
+        return this.data[index];
+    }
+    set(index:number, value:T) {
+        this.data[index] = value;
+    }
+    indexOf(searchElement:never, fromIndex?:number) : number {
+        return this.data.indexOf(searchElement,fromIndex);
+    }
+    toString() : string {
+        return this.data.toString();
+    }
+}
+
+class InfiniteArray<T> extends ArrayWrapper<T> {
+    override get(index: number) : T {
+        if (new NumberRange(0,this.length-1).inRange(index))
+            return this.data[index];
+        return this.data[this.length-1];
+    }
+    override toString(): string {
+        return this.data.toString();
+    }
+}
+
 namespace Enum {
+    export class BaseScores {
+        static readonly Soft:number = 1;
+        static readonly Hard:number = 2;
+        static readonly Clears:InfiniteArray<number> = new InfiniteArray([
+            100,
+            300,
+            500,
+            800
+        ]);
+    }
     export type ModeOperationFunction = (initialValue:number,modifyingValue:number)=>number;
     export class ModeOperation {
         static readonly Set:ModeOperationFunction = (x:number,y:number)=>y;
@@ -363,39 +412,6 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 type easeStyle = "Linear"|"Sinusoidal"|"Quadratic"|"Cubic"|"Quartic"|"Quintic"|"Circular"|"Exponential"|"Back"|"Bounce"|"Elastic";
 type easeDir = "In"|"Out"|"InOut";
 
-class ArrayWrapper<T> {
-    constructor(data:T[]) {
-        this.data = Array.from(data);
-    }
-    protected readonly data:Array<T>;
-    get length() : number {
-        return this.data.length;
-    }
-    push(...items:never) {
-        this.data.push(items);
-    }
-    pop() : T|undefined {
-        return this.data.pop();
-    }
-    get(index:number) : T {
-        return this.data[index];
-    }
-    set(index:number, value:T) {
-        this.data[index] = value;
-    }
-    indexOf(searchElement:never, fromIndex?:number) : number {
-        return this.data.indexOf(searchElement,fromIndex);
-    }
-}
-
-class InfiniteArray<T> extends ArrayWrapper<T> {
-    override get(index: number) : T {
-        if (new NumberRange(0,this.length).inRange(index))
-            return this.data[index];
-        return this.data[this.length-1];
-    }
-}
-
 class FeedtapeArray<T> {
     constructor(length:number) {
         this.data = new Array(length);
@@ -443,17 +459,23 @@ const scoreGatePercentText:HTMLElement = document.getElementById("score-gate-per
 class Game {
     private static score:number = 0;
     static set Score(score:number) {
-        this.score = score*this.Level.ScoreMultiplier();
-        scoreText.textContent = score.toString();
-        scoreGateRelText.textContent = (this.ScoreGate-score).toString();
-        scoreGatePercentText.textContent = Math.trunc((score/this.ScoreGate)*100).toString();
+        Game.score = Math.round(score*Game.Level.ScoreMultiplier());
+        if (Game.score >= Game.ScoreGate) {
+            Game.score-=Game.ScoreGate;
+            Game.Level = Game.LevelIndex+1;
+        }
+        scoreText.textContent = Game.Score.toString();
+        scoreGateRelText.textContent = (Game.ScoreGate-Game.score).toString();
+        scoreGatePercentText.textContent = Math.trunc((Game.score/Game.ScoreGate)*100).toString();
     }
     static get Score() : number {
-        return this.score;
+        return Game.score;
     }
     static ScoreGate:number;
-    static KeyRepeatInterval:number = 75;
-    static KeyRepeatDelay:number = 125;
+    static KeyRepeatInterval:number = 150;
+    static KeyRepeatDelay:number = 250;
+    static MoveKeyRepeatInterval:number = 75;
+    static MoveKeyRepeatDelay:number = 125;
     static AudioVol:number = 100;
     static DisableGrid:boolean = false;
     static AnimMoveTime:number = 60;
@@ -465,10 +487,10 @@ class Game {
     static DropEaseStyle:easeStyle = "Circular";
     static DropEaseDirection:easeDir = "In";
     static get MoveEase() : typeof Easing.Sinusoidal.InOut {
-        return Easing[this.MoveEaseStyle][this.MoveEaseDirection];
+        return Easing[Game.MoveEaseStyle][Game.MoveEaseDirection];
     }
     static get DropEase() : typeof Easing.Sinusoidal.InOut {
-        return Easing[this.DropEaseStyle][this.DropEaseDirection];
+        return Easing[Game.DropEaseStyle][Game.DropEaseDirection];
     }
     static Anims:boolean = true;
     static Physics:boolean = false;
@@ -647,7 +669,7 @@ class Game {
     }
     private static async GameTick() {
         if (Game.Paused) return;
-        const moveRes:boolean|undefined = await Game.CurrentBlock?.Move(0,1);
+        const moveRes:boolean|undefined = await Game.CurrentBlock?.Move(0,1,undefined,true);
         if (Game.CurrentBlock && moveRes === false) {
             await Game.CurrentBlock.Stamp();
         }
@@ -922,6 +944,8 @@ const settingsWin = document.getElementById("settings");
 const Settings = {
     KeyRepeatDelay: settingsWin?.querySelector("#settings-key-repeat-delay"),
     KeyRepeatInterval: settingsWin?.querySelector("#settings-key-repeat-int"),
+    MoveKeyRepeatDelay: settingsWin?.querySelector("#settings-key-repeat-move-delay"),
+    MoveKeyRepeatInterval: settingsWin?.querySelector("#settings-key-repeat-move-int"),
     AudioVol: settingsWin?.querySelector("#settings-audio-vol"),
     DisableGrid: settingsWin?.querySelector("#settings-grid-disabled"),
     SpeedMul: settingsWin?.querySelector("#settings-game-speed-mul"),
@@ -1078,9 +1102,9 @@ class Level {
     private readonly speed:number;
     private readonly scoreGate:number;
     private readonly scoreMultiplier:(index:number)=>number = function(index:number) : number {
-        return 1+index/25;
+        return 1+(index/25);
     };
-    public ScoreMultiplier() {
+    ScoreMultiplier() {
         return this.scoreMultiplier(Levels.indexOf(this as never));
     }
     readonly SpeedMode:Enum.ModeOperationFunction;
@@ -1091,7 +1115,7 @@ class Level {
         return clamp(this.SpeedMode(Game.LevelSpeed,this.speed),this.SpeedRange.Min,this.SpeedRange.Max);
     }
     get ScoreGate() : number {
-        return clamp(this.ScoreGateMode(Game.ScoreGate,this.scoreGate),this.ScoreGateRange.Min,this.ScoreGateRange.Max);
+        return Math.round(clamp(this.ScoreGateMode(Game.ScoreGate,this.scoreGate),this.ScoreGateRange.Min,this.ScoreGateRange.Max));
     }
 }
 
@@ -1116,7 +1140,7 @@ class BlockInstance extends Block {
     constructor(block:Block) {
         super(block.Shapes, block.Data, block.Symbol);
         this._x = Math.floor(Game.Width/2-this.CurrentShape[0].length/2);
-        this._y = 0-this.HighestPoint.Y;
+        // this._y = 0-this.HighestPoint.Y;
         this.targetPos = new Point(this._x,this._y);
     }
     private _x:number = 0;
@@ -1170,7 +1194,7 @@ class BlockInstance extends Block {
     get IsDropping() : boolean {
         return this.dropping;
     }
-    async Move(x:number=0, y:number=0,isInstantDrop:boolean=false) : Promise<boolean|undefined> {
+    async Move(x:number=0, y:number=0, isInstantDrop:boolean=false, isTickedDrop:boolean=false) : Promise<boolean|undefined> {
         if (this.dropping) return undefined;
         x+=this.targetPos?.X ?? 0; y+=this.targetPos?.Y ?? 0;
         if (!this.IsValidPosition(x,y)) return !this.dropping? false : undefined;
@@ -1218,12 +1242,30 @@ class BlockInstance extends Block {
     }
     Rotate(reverse:boolean=false) {
         let dir:number = (reverse) ? -1 : 1;
-        const oldRot = this.Rotation;
-        this.Rotation = Utils.OverflowOperate(this.Rotation,dir,0,3);
-        if (!this.IsValidPosition()) {
-            this.Rotation = oldRot;
+        const newRot:number = Utils.OverflowOperate(this.Rotation,dir,0,3);
+        if (!this.IsValidPosition(undefined,undefined,this.Shapes[newRot])) {
+            for (let i=1; i<=this.Shapes[newRot][0].length; i++) {
+                if ((this.targetPos?.X ?? 0)-i < 0) break;
+                console.log(i,this.IsValidPosition((this.targetPos?.X ?? 0)-i,undefined,this.Shapes[newRot]));
+                if (this.IsValidPosition((this.targetPos?.X ?? 0)-i,undefined,this.Shapes[newRot])) {
+                    console.log((this.targetPos?.X ?? 0)-i);
+                    console.log("left");
+                    this.Rotation = newRot;
+                    this._x = (this.targetPos?.X ?? 0)-i;
+                    this.Draw();
+                    return true;
+                }
+            }
+            // if (this.IsValidPosition((this.targetPos?.X ?? 0)+1,undefined,this.Shapes[newRot])) {
+            //     console.log("right");
+            //     this.Rotation = newRot;
+            //     this._x = (this.targetPos?.X ?? 0)+1;
+            //     this.Draw();
+            //     return true;
+            // }
             return false;
         }
+        this.Rotation = newRot;
         this.Draw();
         return true;
     }
@@ -1271,7 +1313,9 @@ class BlockInstance extends Block {
         this.stamping = false;
     }
     async InstantDrop() {
-        await this.Move(0,this.LowestValidY-(this.targetPos?.Y ?? 0),true);
+        const y = this.LowestValidY-(this.targetPos?.Y ?? 0);
+        Game.Score += y*Enum.BaseScores.Hard;
+        await this.Move(0,y,true);
         await this.Stamp();
     }
     private get LowestValidY() : number {
@@ -1312,9 +1356,9 @@ class BlockInstance extends Block {
 }
 
 const Levels:InfiniteArray<Level> = new InfiniteArray([
-    new Level("Level 0",1.0,0,Enum.ModeOperation.Set,Enum.ModeOperation.Set),
-    new Level("Level 1",1.25,1000,Enum.ModeOperation.Multiply,Enum.ModeOperation.Set),
-])
+    new Level("a",1.0,0,Enum.ModeOperation.Set,Enum.ModeOperation.Set),
+    new Level("b",1.25,1000,Enum.ModeOperation.Multiply,Enum.ModeOperation.Set),
+]);
 
 const Blocks:Record<string,Block> = {
     "I": new Block(
@@ -1623,7 +1667,9 @@ async function handleKeypress(event:KeyboardEvent) {
             Game.CurrentBlock?.Move(1, 0);
             break;
         case Game.KeyBinds.Soft:
-            Game.CurrentBlock?.Move(0, 1);
+            Game.CurrentBlock?.Move(0, 1).then(success=>{
+                if (success) Game.Score += Enum.BaseScores.Soft;
+            });
             break;
         case Game.KeyBinds.RC:
             Game.CurrentBlock?.Rotate();
@@ -1654,6 +1700,7 @@ window.addEventListener("keydown", async event=>{
     if (!paused && heldKeys[event.key]) return;
     heldKeys[event.key] = true;
     handleKeypress(event);
+    const isMoveKey = event.key === Game.KeyBinds.Left || event.key === Game.KeyBinds.Right || event.key === Game.KeyBinds.Soft;
     if (!paused) {
         setTimeout(()=>{
             if (!heldKeys[event.key]) return;
@@ -1661,8 +1708,8 @@ window.addEventListener("keydown", async event=>{
             id = setInterval(()=>{
                 if (!heldKeys[event.key]) return clearInterval(id);
                 handleKeypress(new KeyboardEvent("keydown",{key:event.key}));
-            },Game.KeyRepeatInterval);
-        },Game.KeyRepeatDelay);
+            },isMoveKey? Game.MoveKeyRepeatInterval : Game.KeyRepeatInterval);
+        },isMoveKey? Game.MoveKeyRepeatDelay : Game.KeyRepeatDelay);
     }
 }, true);
 
