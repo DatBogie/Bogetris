@@ -656,6 +656,7 @@ class Game {
     static _data;
     static _time;
     static _thread_id;
+    static _lock_thread_id;
     static GridDrawn = false;
     static _centerPoint(canvas) {
         return new Point(canvas.Canvas.width / 2, canvas.Canvas.height / 2);
@@ -714,12 +715,16 @@ class Game {
         const moveRes = await Game.CurrentBlock?.Move(0, 1, undefined, true);
         if (Game.CurrentBlock && moveRes === false) {
             const curBlock = Game.CurrentBlock;
-            setTimeout(async () => {
+            if (Game._lock_thread_id)
+                clearTimeout(Game._lock_thread_id);
+            Game._lock_thread_id = setTimeout(async () => {
                 if (curBlock !== Game.CurrentBlock)
                     return;
                 await Game.CurrentBlock?.Stamp();
             }, Game.LockDelay);
         }
+        else if (Game._lock_thread_id)
+            clearInterval(Game._lock_thread_id);
         return Game.rgt();
     }
     static StartGame() {
