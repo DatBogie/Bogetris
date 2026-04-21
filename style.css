@@ -203,8 +203,12 @@ button:active {
 .modal {
     width: auto;
     height: 100%;
-    overflow: scroll;
+    overflow: hidden;
     padding: 1px;
+}
+.modal-content {
+    overflow: scroll;
+    align-items: start;
 }
 
 ul.layout {
