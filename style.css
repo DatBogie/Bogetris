@@ -84,14 +84,19 @@ body {
     transition: filter 200ms ease;
 }
 
-.right-stack {
+.left-stack,.right-stack {
     position: absolute;
-    left: 100%;
     top: 0;
     width: calc((100vw - 50vh) / 2);
     height: 100vh;
     flex-direction: column;
     justify-content: start;
+}
+.left-stack {
+    right: 100%;
+}
+.right-stack {
+    left: 100%;
 }
 
 .right-canvas {
@@ -100,7 +105,7 @@ body {
     max-width: 400px;
 }
 
-.game-canvas.paused, .modal.active, .right-stack.paused {
+.game-canvas.paused, .modal.active, .right-stack.paused, .left-stack.paused {
     filter: blur(16px) saturate(120%) brightness(80%);
 }
 
@@ -198,8 +203,12 @@ button:active {
 .modal {
     width: auto;
     height: 100%;
-    overflow: scroll;
+    overflow: hidden;
     padding: 1px;
+}
+.modal-content {
+    overflow: scroll;
+    align-items: start;
 }
 
 ul.layout {
@@ -356,7 +365,84 @@ hr {
     color: var(--overlay0);
 }
 
-h2 {
+h2, h2 span {
     color: white;
     text-align: center;
+    font-weight: bolder;
+    font-size: x-large;
+}
+
+.gap {
+    display: inline-block;
+    width: 50px;
+}
+
+#about {
+    overflow: visible;
+}
+#about-content {
+    width: 80vw;
+    max-height: 80%;
+    max-width: unset;
+    overflow: scroll;
+    display: block;
+    background-color: var(--base);
+    backdrop-filter: unset !important;
+    padding: 0;
+    padding-bottom: 38px;
+}
+#about-readme {
+    /* background-color: var(--base); */
+    text-align: left;
+    margin: 0;
+    padding: 24px;
+    padding-top: 18px;
+    color: var(--text);
+}
+#about-readme :is(p,tr,code,a,li,span) {
+    font-size: 1.25rem;
+}
+#about-readme * {
+    text-align: left;
+}
+#about-readme :is(h1,h2,h3) {
+    border-bottom: 1px var(--surface1) solid;
+    color: var(--text);
+    margin-bottom: 12px;
+}
+#about-readme h1 {
+    font-size: 3rem;
+    margin-top: 0;
+}
+#about-readme h2 {
+    font-size: 2rem;
+    margin-top: 6px;
+}
+#about-readme h3 {
+    font-size: 1.5rem;
+    margin-top: 4px;
+}
+#about-readme :is(ul,ol) {
+    margin-top: 0;
+    margin-bottom: 24px;
+}
+#about-readme table {
+    border-collapse: collapse;
+}
+#about-readme :is(th,td) {
+    padding: 12px;
+    border-color: var(--surface1);
+    border-width: 1px;
+    border-style: solid;
+}
+#about-readme th {
+    text-align: center;
+}
+
+#about-readme tr:nth-child(even) {
+    background-color: var(--mantle);
+}
+
+a {
+    color: var(--lavender);
 }
