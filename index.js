@@ -501,7 +501,7 @@ class Game {
     static set Score(score) {
         Game.score = Math.round(score * Game.Level.ScoreMultiplier());
         if (Game.score >= Game.ScoreGate) {
-            Game.score -= Game.ScoreGate;
+            // Game.score-=Game.ScoreGate;
             Game.Level = Game.LevelIndex + 1;
         }
         scoreText.textContent = Game.Score.toString();
@@ -713,18 +713,19 @@ class Game {
         if (Game.Paused)
             return Game.rgt();
         const moveRes = await Game.CurrentBlock?.Move(0, 1, undefined, true);
-        if (Game.CurrentBlock && moveRes === false) {
+        if (Game.CurrentBlock && moveRes === false && !Game._lock_thread_id) {
             const curBlock = Game.CurrentBlock;
-            if (Game._lock_thread_id)
-                clearTimeout(Game._lock_thread_id);
             Game._lock_thread_id = setTimeout(async () => {
-                if (curBlock !== Game.CurrentBlock)
+                if (curBlock !== Game.CurrentBlock || Game.CurrentBlock?.IsValidPosition(undefined, (Game.CurrentBlock?.TargetPos?.Y ?? 0) + 1))
                     return;
                 await Game.CurrentBlock?.Stamp();
+                Game._lock_thread_id = null;
             }, Game.LockDelay);
         }
-        else if (Game._lock_thread_id)
+        else if (Game.CurrentBlock && moveRes && Game._lock_thread_id) {
             clearInterval(Game._lock_thread_id);
+            Game._lock_thread_id = null;
+        }
         return Game.rgt();
     }
     static StartGame() {
@@ -976,10 +977,7 @@ class Game {
             if (el.id === "settings")
                 RejectSettingsBuffer.Fire();
         });
-        if (paused === undefined)
-            Game.Paused = !Game.Paused;
-        else
-            Game.Paused = paused;
+        Game.Paused = paused === undefined ? !Game.Paused : paused;
         if (Game.Paused)
             document.getElementById("pause-ind")?.classList.add("paused");
         else
@@ -1270,6 +1268,9 @@ class BlockInstance extends Block {
     }
     tween = new Tween([]);
     targetPos;
+    get TargetPos() {
+        return this.targetPos;
+    }
     dropping = false;
     isFake = false;
     Clone() {
