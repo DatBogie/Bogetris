@@ -679,6 +679,7 @@ class Game {
         Game._thread_id = setTimeout(Game.GameTick,Game.Speed);
     }
     private static async GameTick() {
+        console.log("tick",Game.Paused);
         if (Game.Paused) return Game.rgt();
         const moveRes:boolean|undefined = await Game.CurrentBlock?.Move(0,1,undefined,true);
         if (Game.CurrentBlock && moveRes === false) {
