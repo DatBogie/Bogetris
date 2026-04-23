@@ -112,8 +112,20 @@ class InfiniteArray extends ArrayWrapper {
             return this.data[index];
         return this.data[this.length - 1];
     }
-    toString() {
-        return this.data.toString();
+}
+class BagArray extends ArrayWrapper {
+    dataPool;
+    constructor(pool) {
+        super(pool);
+        this.dataPool = Array.from(pool);
+    }
+    refill() {
+        this.data = [...this.dataPool];
+    }
+    pick() {
+        if (this.length <= 0)
+            this.refill();
+        return this.data.splice(Utils.RandomRange(0, this.length - 1), 1)[0];
     }
 }
 var Enum;
@@ -501,7 +513,6 @@ class Game {
     static set Score(score) {
         Game.score = Math.round(score * Game.Level.ScoreMultiplier());
         if (Game.score >= Game.ScoreGate) {
-            // Game.score-=Game.ScoreGate;
             Game.Level = Game.LevelIndex + 1;
         }
         scoreText.textContent = Game.Score.toString();
@@ -742,8 +753,11 @@ class Game {
         Game.rgt();
     }
     static blockFeed;
+    static randomBag;
     static randBlock() {
-        return Utils.PickRandomFromDict(Blocks);
+        if (!Game.randomBag)
+            Game.randomBag = new BagArray(Object.values(Blocks));
+        return Game.randomBag.pick();
     }
     static heldBlock;
     static holdCooldown = false;

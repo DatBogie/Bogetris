@@ -89,10 +89,10 @@ function setAttr(instance:any,attr:string,value:any) : void {
 }
 
 class ArrayWrapper<T> {
-    constructor(data:T[]) {
+    constructor(data:Iterable<T>) {
         this.data = Array.from(data);
     }
-    protected readonly data:Array<T>;
+    protected data:Array<T>;
     get length() : number {
         return this.data.length;
     }
@@ -122,8 +122,20 @@ class InfiniteArray<T> extends ArrayWrapper<T> {
             return this.data[index];
         return this.data[this.length-1];
     }
-    override toString(): string {
-        return this.data.toString();
+}
+
+class BagArray<T> extends ArrayWrapper<T> {
+    private dataPool:T[];
+    constructor(pool:Iterable<T>) {
+        super(pool);
+        this.dataPool = Array.from(pool);
+    }
+    refill() : void {
+        this.data = [...this.dataPool];
+    }
+    pick() : T {
+        if (this.length <= 0) this.refill();
+        return this.data.splice(Utils.RandomRange(0,this.length-1),1)[0];
     }
 }
 
@@ -705,8 +717,10 @@ class Game {
         Game.rgt();
     }
     private static blockFeed:FeedtapeArray<Block>;
+    private static randomBag:BagArray<Block>;
     private static randBlock() : Block {
-        return Utils.PickRandomFromDict(Blocks);
+        if (!Game.randomBag) Game.randomBag = new BagArray(Object.values(Blocks))
+        return Game.randomBag.pick();
     }
     private static heldBlock:Block|undefined;
     private static holdCooldown:boolean = false;
