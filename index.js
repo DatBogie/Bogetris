@@ -506,23 +506,35 @@ const scoreGateText = document.getElementById("score-gate");
 const scoreGateRelText = document.getElementById("score-gate-rel");
 const scoreGatePercentText = document.getElementById("score-gate-percent");
 class Game {
+    static drawScoreText() {
+        levelText.textContent = Game.LevelNumber.toString();
+        scoreText.textContent = Game.Score.toString();
+        scoreGateText.textContent = Game.Level.ClearGate.toString() + " line(s)";
+        scoreGateRelText.textContent = (Game.Level.ClearGate - Game.linesCleared).toString() + " line(s)";
+        scoreGatePercentText.textContent = Math.trunc((Game.linesCleared / Game.Level.ClearGate) * 100).toString();
+    }
+    static linesCleared = 0;
+    static get LinesCleared() {
+        return Game.linesCleared;
+    }
+    static set LinesCleared(lines) {
+        Game.linesCleared = lines;
+        Game.drawScoreText();
+    }
     static MaxSpeed = 4.0;
     static BlockScale = 1.0;
     static LockDelay = 500;
     static score = 0;
     static set Score(score) {
         Game.score = Math.round(score * Game.Level.ScoreMultiplier());
-        if (Game.score >= Game.ScoreGate) {
+        if (Game.linesCleared >= Game.Level.ClearGate) {
             Game.Level = Game.LevelIndex + 1;
         }
-        scoreText.textContent = Game.Score.toString();
-        scoreGateRelText.textContent = (Game.ScoreGate - Game.score).toString();
-        scoreGatePercentText.textContent = Math.trunc((Game.score / Game.ScoreGate) * 100).toString();
+        Game.drawScoreText();
     }
     static get Score() {
         return Game.score;
     }
-    static ScoreGate;
     static KeyRepeatInterval = 150;
     static KeyRepeatDelay = 250;
     static MoveKeyRepeatInterval = 75;
@@ -654,11 +666,7 @@ class Game {
     static set Level(level) {
         this.LevelIndex = level;
         this.LevelSpeed = this.Level.Speed;
-        this.ScoreGate = this.NextLevel.ScoreGate;
-        levelText.textContent = (this.LevelIndex + 1).toString();
-        scoreGateText.textContent = this.ScoreGate.toString();
-        scoreGateRelText.textContent = (this.ScoreGate - this.score).toString();
-        scoreGatePercentText.textContent = Math.trunc((this.score / this.ScoreGate) * 100).toString();
+        Game.drawScoreText();
     }
     static get Running() {
         return Game._running;
@@ -696,10 +704,10 @@ class Game {
         Game.TogglePause(true);
         Game._time = 0;
         Game.Level = 0;
-        Game.Score = 0;
+        Game.linesCleared = 0;
         Game.LevelSpeed = 1;
         Game.LevelSpeed = this.Level.Speed;
-        Game.ScoreGate = this.NextLevel.ScoreGate;
+        Game.Score = 0;
         if (!Game.GridDrawn)
             Game.DrawGrid();
         Game.BlockCanvas.ClearCanvas();
@@ -952,6 +960,7 @@ class Game {
             if (Game._data[y].every(col => col !== 0)) {
                 await Game.EraseLine(Game, y);
                 lineCount++;
+                Game.LinesCleared++;
                 for (let oY = y - 1; oY >= 0; oY--) {
                     for (let x = 0; x < Game.Width; x++) {
                         Game._data[oY + 1][x] = Game._data[oY][x];
@@ -1192,20 +1201,18 @@ class NumberRange {
     static infinite = new NumberRange(-Infinity, Infinity);
 }
 class Level {
-    constructor(name, speed, scoreGate, speedMode = Enum.ModeOperation.Multiply, scoreGateMode = Enum.ModeOperation.Multiply, speedRange = NumberRange.infinite, scoreGateRange = NumberRange.infinite, scoreMultiplier) {
+    constructor(name, speed, clearGate = () => 10 * (Game.LevelNumber), speedMode = Enum.ModeOperation.Multiply, speedRange = NumberRange.infinite, scoreMultiplier) {
         this.Name = name;
         this.speed = speed;
-        this.scoreGate = scoreGate;
+        this.clearGate = clearGate;
         this.SpeedMode = speedMode;
-        this.ScoreGateMode = scoreGateMode;
         this.SpeedRange = speedRange;
-        this.ScoreGateRange = scoreGateRange;
         if (scoreMultiplier)
             this.scoreMultiplier = scoreMultiplier;
     }
     Name;
     speed;
-    scoreGate;
+    clearGate;
     scoreMultiplier = function (index) {
         return 1 + (index / 25);
     };
@@ -1213,14 +1220,12 @@ class Level {
         return this.scoreMultiplier(Levels.indexOf(this));
     }
     SpeedMode;
-    ScoreGateMode;
     SpeedRange;
-    ScoreGateRange;
     get Speed() {
         return clamp(this.SpeedMode(Game.LevelSpeed, this.speed), this.SpeedRange.Min, this.SpeedRange.Max);
     }
-    get ScoreGate() {
-        return Math.round(clamp(this.ScoreGateMode(Game.ScoreGate, this.scoreGate), this.ScoreGateRange.Min, this.ScoreGateRange.Max));
+    get ClearGate() {
+        return this.clearGate();
     }
 }
 class Block {
@@ -1479,8 +1484,8 @@ class BlockInstance extends Block {
     }
 }
 const Levels = new InfiniteArray([
-    new Level("1", 1.0, 0, Enum.ModeOperation.Set, Enum.ModeOperation.Set),
-    new Level("2..", 1.05, 1000, (x, y) => Math.max(1.064 ^ Game.LevelNumber, Game.MaxSpeed), Enum.ModeOperation.Set)
+    new Level("1", 1.0, () => 10, Enum.ModeOperation.Set),
+    new Level("2..", 1.15, undefined, (x, y) => Math.max((y ^ Game.LevelNumber) / 100, Game.MaxSpeed))
 ]);
 const Blocks = {
     "I": new Block([

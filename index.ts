@@ -470,23 +470,35 @@ const scoreGateRelText:HTMLElement = document.getElementById("score-gate-rel") a
 const scoreGatePercentText:HTMLElement = document.getElementById("score-gate-percent") as HTMLElement;
 
 class Game {
-    static MaxSpeed = 4.0;
+    private static drawScoreText() {
+        levelText.textContent = Game.LevelNumber.toString();
+        scoreText.textContent = Game.Score.toString();
+        scoreGateText.textContent = Game.Level.ClearGate.toString()+" line(s)";
+        scoreGateRelText.textContent = (Game.Level.ClearGate-Game.linesCleared).toString()+" line(s)";
+        scoreGatePercentText.textContent = Math.trunc((Game.linesCleared/Game.Level.ClearGate)*100).toString();
+    }
+    private static linesCleared:number = 0;
+    static get LinesCleared() : number {
+        return Game.linesCleared;
+    }
+    static set LinesCleared(lines:number) {
+        Game.linesCleared = lines;
+        Game.drawScoreText();
+    }
+    static MaxSpeed:number = 4.0;
     static BlockScale:number = 1.0;
-    static LockDelay = 500;
+    static LockDelay:number = 500;
     private static score:number = 0;
     static set Score(score:number) {
         Game.score = Math.round(score*Game.Level.ScoreMultiplier());
-        if (Game.score >= Game.ScoreGate) {
+        if (Game.linesCleared >= Game.Level.ClearGate) {
             Game.Level = Game.LevelIndex+1;
         }
-        scoreText.textContent = Game.Score.toString();
-        scoreGateRelText.textContent = (Game.ScoreGate-Game.score).toString();
-        scoreGatePercentText.textContent = Math.trunc((Game.score/Game.ScoreGate)*100).toString();
+        Game.drawScoreText();
     }
     static get Score() : number {
         return Game.score;
     }
-    static ScoreGate:number;
     static KeyRepeatInterval:number = 150;
     static KeyRepeatDelay:number = 250;
     static MoveKeyRepeatInterval:number = 75;
@@ -617,11 +629,7 @@ class Game {
     private static set Level(level:number) {
         this.LevelIndex = level;
         this.LevelSpeed = this.Level.Speed;
-        this.ScoreGate = this.NextLevel.ScoreGate;
-        levelText.textContent = (this.LevelIndex+1).toString();
-        scoreGateText.textContent = this.ScoreGate.toString();
-        scoreGateRelText.textContent = (this.ScoreGate-this.score).toString();
-        scoreGatePercentText.textContent = Math.trunc((this.score/this.ScoreGate)*100).toString();
+        Game.drawScoreText();
     }
     static get Running() : boolean {
         return Game._running
@@ -665,10 +673,10 @@ class Game {
         Game.TogglePause(true);
         Game._time = 0;
         Game.Level = 0;
-        Game.Score = 0;
+        Game.linesCleared = 0;
         Game.LevelSpeed = 1;
         Game.LevelSpeed = this.Level.Speed;
-        Game.ScoreGate = this.NextLevel.ScoreGate;
+        Game.Score = 0;
         if (!Game.GridDrawn)
             Game.DrawGrid();
         Game.BlockCanvas.ClearCanvas();
@@ -897,6 +905,7 @@ class Game {
             if (Game._data[y].every(col=>col!==0)) {
                 await Game.EraseLine(Game, y);
                 lineCount++;
+                Game.LinesCleared++;
                 for (let oY=y-1; oY>=0; oY--) {
                     for (let x=0; x<Game.Width; x++) {
                         Game._data[oY+1][x] = Game._data[oY][x];
@@ -1137,19 +1146,17 @@ class NumberRange {
 }
 
 class Level {
-    constructor(name:string, speed:number, scoreGate:number, speedMode:Enum.ModeOperationFunction=Enum.ModeOperation.Multiply, scoreGateMode:Enum.ModeOperationFunction=Enum.ModeOperation.Multiply, speedRange:NumberRange=NumberRange.infinite, scoreGateRange:NumberRange=NumberRange.infinite, scoreMultiplier?:(index:number)=>number) {
+    constructor(name:string, speed:number, clearGate:()=>number=()=>10*(Game.LevelNumber), speedMode:Enum.ModeOperationFunction=Enum.ModeOperation.Multiply, speedRange:NumberRange=NumberRange.infinite, scoreMultiplier?:(index:number)=>number) {
         this.Name = name;
         this.speed = speed;
-        this.scoreGate = scoreGate;
+        this.clearGate = clearGate;
         this.SpeedMode = speedMode;
-        this.ScoreGateMode = scoreGateMode;
         this.SpeedRange = speedRange;
-        this.ScoreGateRange = scoreGateRange;
         if (scoreMultiplier) this.scoreMultiplier = scoreMultiplier;
     }
     readonly Name:string;
     private readonly speed:number;
-    private readonly scoreGate:number;
+    private readonly clearGate:()=>number;
     private readonly scoreMultiplier:(index:number)=>number = function(index:number) : number {
         return 1+(index/25);
     };
@@ -1157,14 +1164,12 @@ class Level {
         return this.scoreMultiplier(Levels.indexOf(this as never));
     }
     readonly SpeedMode:Enum.ModeOperationFunction;
-    readonly ScoreGateMode:Enum.ModeOperationFunction;
     readonly SpeedRange:NumberRange;
-    readonly ScoreGateRange:NumberRange;
     get Speed() : number {
         return clamp(this.SpeedMode(Game.LevelSpeed,this.speed),this.SpeedRange.Min,this.SpeedRange.Max);
     }
-    get ScoreGate() : number {
-        return Math.round(clamp(this.ScoreGateMode(Game.ScoreGate,this.scoreGate),this.ScoreGateRange.Min,this.ScoreGateRange.Max));
+    get ClearGate() : number {
+        return this.clearGate();
     }
 }
 
@@ -1409,8 +1414,8 @@ class BlockInstance extends Block {
 }
 
 const Levels:InfiniteArray<Level> = new InfiniteArray([
-    new Level("1",1.0,0,Enum.ModeOperation.Set,Enum.ModeOperation.Set),
-    new Level("2..",1.05,1000,(x:number,y:number)=>Math.max(1.064^Game.LevelNumber,Game.MaxSpeed),Enum.ModeOperation.Set)
+    new Level("1",1.0,()=>10,Enum.ModeOperation.Set),
+    new Level("2..",1.15,undefined,(x:number,y:number)=>Math.max((y^Game.LevelNumber)/100,Game.MaxSpeed))
 ]);
 
 const Blocks:Record<string,Block> = {
