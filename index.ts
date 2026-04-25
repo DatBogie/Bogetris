@@ -2044,7 +2044,7 @@ const keyTranslationMap:Record<string,string> = {
     Shift: "",
     "\\": "",
     "/": "",
-    Space: "",
+    " ": "",
     Tab: "",
     "~": "",
     Meta: "",

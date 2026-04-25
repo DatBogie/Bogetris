@@ -483,7 +483,7 @@ a {
     transform: translateY(0px);
 }
 
-big.icon {
+.icon {
     font-size: 300%;
     text-rendering: optimizeLegibility;
     font-weight: normal;
@@ -491,8 +491,10 @@ big.icon {
 
 button.keybind {
     font-family: var(--font);
-    font-size: 200%;
+    font-size: 300%;
     padding: 0;
     padding-left: 5%;
     padding-right: 5%;
+    font-weight: normal;
+    text-rendering: optimizeLegibility;
 }
