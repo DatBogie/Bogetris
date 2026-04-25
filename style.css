@@ -1,3 +1,11 @@
+@font-face {
+    font-family: "Kenney";
+    src: url("./Fonts/kenney_input_keyboard_and_mouse.ttf") format("truetype");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
 :root {
     --olc: hsla(0, 0%, 100%, 0.25);
     --rosewater: #f4dbd6;
@@ -27,6 +35,7 @@
     --mantle: #1e2030;
     --crust: #181926;
     --accent: var(--lavender);
+    --font: Kenney, "Nunito", serif;
 }
 
 ::selection {
@@ -39,7 +48,7 @@ body {
     margin: 0;
     padding: 0;
     overflow: hidden;
-    font-family: "Nunito", serif;
+    font-family: var(--font);
 }
 
 .center {
@@ -58,7 +67,7 @@ body {
     outline: 1px solid var(--olc);
 }
 
-.right-canvas {
+.right-canvas, .canvas-box {
     background-color: var(--mantle);
     border-width: 2px;
     border-style: solid;
@@ -105,7 +114,7 @@ body {
     max-width: 400px;
 }
 
-.game-canvas.paused, .modal.active, .right-stack.paused, .left-stack.paused {
+.game-canvas.paused, .modal.active, .right-stack.paused { /* , .left-stack.paused */
     filter: blur(16px) saturate(120%) brightness(80%);
 }
 
@@ -370,8 +379,13 @@ hr {
 h2, h2 span {
     color: white;
     text-align: center;
-    font-weight: bolder;
     font-size: x-large;
+}
+h2 span {
+    font-weight: normal;
+}
+h2, h2 span.h2 {
+    font-weight: bolder;
 }
 
 .gap {
@@ -379,10 +393,10 @@ h2, h2 span {
     width: 50px;
 }
 
-#about {
+.docs {
     overflow: visible;
 }
-#about-content {
+.docs .modal-content {
     width: 80vw;
     max-height: 80%;
     max-width: unset;
@@ -393,7 +407,7 @@ h2, h2 span {
     padding: 0;
     padding-bottom: 38px;
 }
-#about-readme {
+.readme {
     /* background-color: var(--base); */
     text-align: left;
     margin: 0;
@@ -401,50 +415,84 @@ h2, h2 span {
     padding-top: 18px;
     color: var(--text);
 }
-#about-readme :is(p,tr,code,a,li,span) {
+.readme :is(p,tr,code,a,li,span) {
     font-size: 1.25rem;
 }
-#about-readme * {
+.readme * {
     text-align: left;
 }
-#about-readme :is(h1,h2,h3) {
+.readme :is(h1,h2,h3) {
     border-bottom: 1px var(--surface1) solid;
     color: var(--text);
     margin-bottom: 12px;
 }
-#about-readme h1 {
+.readme h1 {
     font-size: 3rem;
     margin-top: 0;
 }
-#about-readme h2 {
+.readme h2 {
     font-size: 2rem;
     margin-top: 6px;
 }
-#about-readme h3 {
+.readme h3 {
     font-size: 1.5rem;
     margin-top: 4px;
 }
-#about-readme :is(ul,ol) {
+.readme :is(ul,ol) {
     margin-top: 0;
     margin-bottom: 24px;
 }
-#about-readme table {
+.readme table {
     border-collapse: collapse;
 }
-#about-readme :is(th,td) {
+.readme :is(th,td) {
     padding: 12px;
     border-color: var(--surface1);
     border-width: 1px;
     border-style: solid;
 }
-#about-readme th {
+.readme th {
     text-align: center;
 }
 
-#about-readme tr:nth-child(even) {
+.readme tr:nth-child(even) {
     background-color: var(--mantle);
 }
 
 a {
     color: var(--lavender);
+}
+
+#new-highscore {
+    display: none;
+    position: relative;
+    background-color: var(--accent);
+    color: white;
+    font-size: 1rem;
+    padding-left: 4px;
+    padding-right: 4px;
+    margin-left: 8px;
+    border-radius: 5px;
+    font-weight: normal;
+    text-shadow: 1px 1px 4px #000000bb;
+    transform: translateY(-25px);
+    transition: transform 2s ease;
+}
+#new-highscore.new-highscore {
+    display: inline-block;
+    transform: translateY(0px);
+}
+
+big.icon {
+    font-size: 300%;
+    text-rendering: optimizeLegibility;
+    font-weight: normal;
+}
+
+button.keybind {
+    font-family: var(--font);
+    font-size: 200%;
+    padding: 0;
+    padding-left: 5%;
+    padding-right: 5%;
 }

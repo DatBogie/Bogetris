@@ -184,9 +184,6 @@ namespace Enum {
 }
 
 class Utils {
-    static parseBoolean(v:string) : boolean {
-        return v === "1";
-    }
     static OverflowOperate(n0:number, n1:number, underflow:number, overflow:number, operation:Enum.Operation|string=Enum.Operation.Addition) : number {
         if (typeof operation === "string") operation = Enum.OperationFromString(operation);
         if (operation === Enum.Operation.Addition)
@@ -468,17 +465,25 @@ class FeedtapeArray<T> {
 
 const levelText:HTMLElement = document.getElementById("level") as HTMLElement;
 const scoreText:HTMLElement = document.getElementById("score") as HTMLElement;
-const scoreGateText:HTMLElement = document.getElementById("score-gate") as HTMLElement;
-const scoreGateRelText:HTMLElement = document.getElementById("score-gate-rel") as HTMLElement;
-const scoreGatePercentText:HTMLElement = document.getElementById("score-gate-percent") as HTMLElement;
+const lineClearText:HTMLElement = document.getElementById("line-clear") as HTMLElement;
+const lineClearRelText:HTMLElement = document.getElementById("line-clear-rel") as HTMLElement;
+const highScoreText:HTMLElement = document.getElementById("highscore") as HTMLElement;
+const newHighScoreBadge:HTMLElement = document.getElementById("new-highscore") as HTMLElement;
 
 class Game {
+    static ResetHighScore:boolean = false;
+    static ResetSettings:boolean = false;
+    static loadHighScore() : void {
+        let highscore = localStorage.getItem("HighScore");
+        Game.highScore = highscore? parseInt(highscore) : 0;
+        highScoreText.textContent = Game.highScore.toString();
+    }
     private static drawScoreText() {
         levelText.textContent = Game.LevelNumber.toString();
         scoreText.textContent = Game.Score.toString();
-        scoreGateText.textContent = Game.Level.ClearGate.toString()+" line(s)";
-        scoreGateRelText.textContent = (Game.Level.ClearGate-Game.linesCleared).toString()+" line(s)";
-        scoreGatePercentText.textContent = Math.trunc((Game.linesCleared/Game.Level.ClearGate)*100).toString();
+        lineClearRelText.textContent = (Game.Level.ClearGate-Game.linesCleared).toString();
+        const relClearGate:number = (Game.Level.ClearGate-(Game.LevelIndex > 0? Game.LastLevel.ClearGate : 0));
+        lineClearText.textContent = relClearGate.toString()+" line(s)";
     }
     private static linesCleared:number = 0;
     static get LinesCleared() : number {
@@ -496,12 +501,10 @@ class Game {
         return Game.highScore;
     }
     static set HighScore(score:number) {
-        Game.highScore = score;
-        try {
-            localStorage.setItem("HighScore",Game.score.toString());
-        } catch (error) {
-            alert(`Failed to save highscore: ${error}`);
-        } 
+        Game.highScore = Math.max(score,Game.highScore);
+        localStorage.setItem("HighScore",Game.highScore.toString());
+        highScoreText.textContent = Game.highScore.toString();
+        newHighScoreBadge.classList.remove("new-highscore");
     }
     private static score:number = 0;
     static set Score(score:number) {
@@ -510,6 +513,13 @@ class Game {
             Game.Level = Game.LevelIndex+1;
         }
         Game.drawScoreText();
+        if (Game.score > Game.highScore) {
+            highScoreText.textContent = Game.score.toString();
+            newHighScoreBadge.classList.add("new-highscore");
+        } else {
+            highScoreText.textContent = (Game.HighScore ?? 0).toString();
+            newHighScoreBadge.classList.remove("new-highscore");
+        }
     }
     static get Score() : number {
         return Game.score;
@@ -638,6 +648,9 @@ class Game {
     private static get Level() : Level {
         return Levels.get(this.LevelIndex);
     }
+    private static get LastLevel() : Level {
+        return Levels.get(this.LevelIndex-1);
+    }
     private static get NextLevel() : Level {
         return Levels.get(this.LevelIndex+1);
     }
@@ -684,10 +697,6 @@ class Game {
         return Game._time;
     }
     static Reset() {
-        if (!Game.HighScore) {
-            let highscore = localStorage.getItem("HighScore");
-            Game.highScore = highscore? parseInt(highscore) : 0;
-        }
         if (Game.score > Game.HighScore) Game.HighScore = Game.score;
         Game._running = false;
         Game.TogglePause(true);
@@ -711,6 +720,7 @@ class Game {
                 Game._data[y][x] = 0;
         }
     }
+    static ReloadPage = ()=>window.location.reload();
     static NewGame() {
         Game.Reset();
     }
@@ -1015,6 +1025,8 @@ class Signal {
 
 const settingsWin = document.getElementById("settings");
 const Settings = {
+    ResetSettings: settingsWin?.querySelector("#settings-advanced-reset-settings"),
+    ResetHighScore: settingsWin?.querySelector("#settings-advanced-reset-highscore"),
     MaxSpeed: settingsWin?.querySelector("#settings-game-max-speed"),
     BlockScale: settingsWin?.querySelector("#settings-fun-block-scale"),
     LockDelay: settingsWin?.querySelector("#settings-game-lock-delay"),
@@ -1041,7 +1053,7 @@ const Settings = {
     DropEaseStyle: settingsWin?.querySelector("#settings-ease-style-drop"),
     DropEaseDirection: settingsWin?.querySelector("#settings-ease-dir-drop")
 } as Record<string, HTMLElement|HTMLInputElement>
-const SettingsBuffer:Map<string,Record<string,string[]|HTMLInputElement|HTMLSelectElement|any>> = new Map<string,any>();
+const SettingsBuffer:Map<string,bufferData> = new Map<string,any>();
 const settingsTitle:HTMLDivElement = document.getElementById("settings-title") as HTMLDivElement;
 type bufferData = {
     value:any,
@@ -1049,26 +1061,59 @@ type bufferData = {
     funcs:string[]
 }
 function LoadSettings() {
-    for (let i=0; i<localStorage.length; i++) {
-        try {
+    if (localStorage.getItem("SETTINGS/ResetHighScore")) {
+        localStorage.removeItem("SETTINGS/ResetHighScore")
+        localStorage.removeItem("HighScore");
+    }
+    Game.loadHighScore();
+    if (localStorage.getItem("SETTINGS/ResetSettings")) {
+        const keys:string[] = [];
+        for (let i=0; i<localStorage.length; i++) {
             let k:string|null = localStorage.key(i);
             if (!k || !k.startsWith("SETTINGS/")) continue;
-            const strValue:string|null = localStorage.getItem(k);
-            if (!strValue) continue;
-            k = k.slice("SETTINGS/".length);
-            const jsonValue:{value:any,type:string} = JSON.parse(strValue);
-            let tValue:any = jsonValue.value;
-            switch (jsonValue.type) {
-                case "boolean":
-                    tValue = Utils.parseBoolean(tValue);
+            keys.push(k);
+        }
+        for (const k of keys)
+            localStorage.removeItem(k);
+    }
+    for (let i=0; i<localStorage.length; i++) {
+        let k:string|null = localStorage.key(i);
+        if (!k || !k.startsWith("SETTINGS/")) continue;
+        const strValue:string|null = localStorage.getItem(k);
+        if (!strValue) continue;
+        k = k.slice("SETTINGS/".length);
+        const jsonValue:{value:string,type:string,el:string} = JSON.parse(strValue);
+        const el:HTMLElement|null = document.getElementById(jsonValue.el);
+        if (!el) continue;
+        let tValue:any = jsonValue.value;
+        switch (jsonValue.type) {
+            case "number":
+                tValue = parseFloat(tValue);
+                break;
+            default:
+                break;
+        }
+        setAttr(Game,k,tValue);
+        const label:HTMLElement|null = document.getElementById(jsonValue.el+"-label");
+        if (label) label.textContent = tValue.toString();
+        if (el instanceof HTMLInputElement) {
+            switch (el.type) {
+                case "range":
                 case "number":
-                    tValue = parseFloat(tValue);
-                case "string":
-                    setAttr(Game,k,tValue);
+                    if (el.classList.contains("percent"))
+                        el.valueAsNumber = tValue*parseFloat(el.max);
+                    else
+                        el.valueAsNumber = tValue;
+                    break;
+                case "checkbox":
+                    el.checked = tValue
+                    break;
+                default:
+                    el.value = jsonValue.value;
                     break;
             }
-        } catch (error) {
-            alert(`Error whilst loading data: ${error}`);
+        } else {
+            el.textContent = jsonValue.value;
         }
     }
 }
@@ -1084,20 +1129,32 @@ function UpdateSettingsBuffer(k:string, data:bufferData) : void {
     SettingsBuffer.set(k,data);
     settingsTitle.textContent = "Settings*";
 }
+const DestructiveFuncs:Function[] = [Game.ReloadPage];
 function WriteSettingsBuffer() : void {
+    const funcs:Function[] = [];
     for (const [k,v] of SettingsBuffer.entries()) {
         setAttr(Game,k,v.value);
-        localStorage.setItem(`SETTINGS/${k}`,JSON.stringify({value:v,type:typeof v.value}));
+        localStorage.setItem(`SETTINGS/${k}`,JSON.stringify({value:v.value,type:typeof v.value,el:v.el.id}));
         if (v.funcs && v.funcs.length !== 0) {
             for (const f of v.funcs) {
                 let x:Function|undefined = getAttr(Game,f);
-                if (x === undefined) continue;
-                x();
+                if (x === undefined || funcs.indexOf(x) !== -1) continue;
+                funcs.push(x);
             }
         }
     }
     SettingsBuffer.clear();
     settingsTitle.textContent = "Settings";
+    const destructiveFuncs:Function[] = [];
+    for (const f of funcs) {
+        const dI:number = DestructiveFuncs.indexOf(f);
+        if (dI !== -1) {
+            destructiveFuncs[dI] = f;
+            continue;
+        }
+        f();
+    }
+    for (const f of destructiveFuncs) f();
 }
 const RejectSettingsBuffer = new Signal();
 RejectSettingsBuffer.Connect(()=>{
@@ -1347,7 +1404,8 @@ class BlockInstance extends Block {
         if (!this.IsValidPosition(undefined,undefined,this.Shapes[newRot])) {
             for (let i=1; i<=this.Shapes[newRot][0].length; i++) {
                 if (this.IsValidPosition((this.targetPos?.X ?? 0)-i,undefined,this.Shapes[newRot])) {
-                    this.tween.stop();
+                    this._x = this.targetPos?.X ?? 0;
+                    // this.tween.stop();
                     this.Rotation = newRot;
                     this._x = (this.targetPos?.X ?? 0)-i;
                     this.targetPos =  new Point(this._x,this.targetPos?.Y ?? 0);
@@ -1355,7 +1413,8 @@ class BlockInstance extends Block {
                     return true;
                 }
                 if (this.IsValidPosition((this.targetPos?.X ?? 0)+i,undefined,this.Shapes[newRot])) {
-                    this.tween.stop();
+                    this._x = this.targetPos?.X ?? 0;
+                    // this.tween.stop();
                     this.Rotation = newRot;
                     this._x = (this.targetPos?.X ?? 0)+i;
                     this.targetPos =  new Point(this._x,this.targetPos?.Y ?? 0);
@@ -1678,8 +1737,23 @@ function stepRange(range:HTMLInputElement,dir:number=1) : number {
     return clamp((int? parseInt : parseFloat)(range.value)+(getRangeStep(range)*dir),(int? parseInt : parseFloat)(range.min),(int? parseInt : parseFloat)(range.max));
 }
 
-const heldKeys:Record<string,boolean> = { "Shift":false, "Control":false, "Meta":false };
+const heldKeys:Record<string,boolean> = {};
 const keyThreads:Record<string,number|undefined> = {};
+
+var pausedFromFocusLoss:boolean;
+
+window.addEventListener("focus",()=>{
+    if (pausedFromFocusLoss && Game.Paused) Game.TogglePause(false);
+    pausedFromFocusLoss = false;
+});
+window.addEventListener("blur",()=>{
+    for (const k of Object.keys(heldKeys))
+        heldKeys[k] = false;
+    if (!Game.Paused) {
+        Game.TogglePause(true);
+        pausedFromFocusLoss = true;
+    }
+});
 
 async function handleKeypress(event:KeyboardEvent) {
     let eventKey = event.key;
@@ -1803,9 +1877,6 @@ window.addEventListener("keydown", async event=>{
     }
 }, true);
 
-Game.DrawGrid();
-Game.NewGame();
-
 document.getElementById("pause-resume")?.addEventListener("click",()=>{
     if (!Game.Running) {
         Game.StartGame();
@@ -1826,6 +1897,16 @@ document.getElementById("pause-mods")?.addEventListener("click",()=>{
 });
 document.getElementById("mods-back")?.addEventListener("click",()=>{
     document.getElementById("mods")?.classList.remove("active");
+    updateSelectionButtons();
+});
+
+document.getElementById("pause-help")?.addEventListener("click",()=>{
+    if (document.querySelector(".modal.active")) return;
+    document.getElementById("help")?.classList.add("active");
+    updateSelectionButtons();
+});
+document.getElementById("help-back")?.addEventListener("click",()=>{
+    document.getElementById("help")?.classList.remove("active");
     updateSelectionButtons();
 });
 
@@ -1877,20 +1958,114 @@ document.querySelectorAll("details").forEach(el=>{
     });
 });
 
+const isMac = navigator.platform === "MacIntel";
 const keyTranslationMap:Record<string,string> = {
-    " ": "Space"
+    "0": "",
+    "1": "",
+    "2": "",
+    "3": "",
+    "4": "",
+    "5": "",
+    "6": "",
+    "7": "",
+    "8": "",
+    "9": "",
+    a: "",
+    b: "",
+    c: "",
+    d: "",
+    e: "",
+    f: "",
+    g: "",
+    h: "",
+    i: "",
+    j: "",
+    k: "",
+    l: "",
+    m: "",
+    n: "",
+    o: "",
+    p: "",
+    q: "",
+    r: "",
+    s: "",
+    t: "",
+    u: "",
+    v: "",
+    w: "",
+    x: "",
+    y: "",
+    z: "",
+    Alt: "",
+    "'": "",
+    ArrowDown: "",
+    ArrowLeft: "",
+    ArrowRight: "",
+    ArrowUp: "",
+    "*": "",
+    Backspace: "",
+    "[": "",
+    "]": "",
+    "<": "",
+    ">": "",
+    "^": "",
+    ":": "",
+    ",": "",
+    Control: "",
+    Delete: "",
+    End: "",
+    Enter: "",
+    "=": "",
+    Escape: "",
+    "!": "",
+    F1: "",
+    F2: "",
+    F3: "",
+    F4: "",
+    F5: "",
+    F6: "",
+    F7: "",
+    F8: "",
+    F9: "",
+    F10: "",
+    F11: "",
+    F12: "",
+    Home: "",
+    Insert: "",
+    "-": "",
+    PageDown: "",
+    PageUp: "",
+    ".": "",
+    "+": "",
+    PrintScreen: "",
+    "?": "",
+    "\"": "",
+    ";": "",
+    Shift: "",
+    "\\": "",
+    "/": "",
+    Space: "",
+    Tab: "",
+    "~": "",
+    Meta: "",
+    mac_Command: "",
+    mac_Option: ""
+}
+for (const [key,symbol] of Object.entries(keyTranslationMap)) {
+    if (key.length === 1 && key.toLowerCase() !== key) {
+        keyTranslationMap[key.toUpperCase()] = `${keyTranslationMap.Shift}${symbol}`
+        continue;
+    }
+    if (isMac && key === "Meta" || key === "Alt") {
+        if (key === "Meta")
+            keyTranslationMap[key] = keyTranslationMap.mac_Command;
+        if (key === "Alt")
+            keyTranslationMap[key] = keyTranslationMap.mac_Option;
+        continue;
+    }
 }
 function translateKey(k:string,reverse:boolean=false) : string {
     if (keyTranslationMap[k]) return keyTranslationMap[k];
-    if (!reverse) {
-        if (k.length === 1) return k.toUpperCase();
-        if (k.startsWith("Arrow"))
-            return `${k.substring(5)} Arrow`;
-    } else {
-        if (k.length === 1) return k.toLowerCase();
-        if (k.endsWith(" Arrow"))
-            return `Arrow${k.substring(0,k.lastIndexOf(" Arrow"))}`;
-    }
     return k;
 }
 (document.querySelectorAll("button.keybind") as NodeListOf<HTMLButtonElement>).forEach(el=>{
@@ -1950,8 +2125,19 @@ document.addEventListener("click",event=>{
     }
 });
 
-let readme:Response|string = await fetch("./README.md");
-readme = await readme.text();
-readme = await marked.parse(readme);
-const rmt = document.getElementById("about-readme");
-if (rmt) rmt.innerHTML = readme;
+LoadSettings();
+Game.DrawGrid();
+Game.NewGame();
+
+async function genReadme(id:string,path:string) {
+    let readme:Response|string = await fetch(path);
+    readme = await readme.text();
+    readme = await marked.parse(readme);
+    const rmt = document.getElementById(`${id}-readme`);
+    if (rmt) rmt.innerHTML = readme;
+}
+
+const readmePages = { about:"./README.md", help:"./HELP.md" };
+for (const [id,path] of Object.entries(readmePages)) {
+    genReadme(id,path);
+}

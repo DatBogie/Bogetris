@@ -221,9 +221,6 @@ var Enum;
     })(UIThemeKey = Enum.UIThemeKey || (Enum.UIThemeKey = {}));
 })(Enum || (Enum = {}));
 class Utils {
-    static parseBoolean(v) {
-        return v === "1";
-    }
     static OverflowOperate(n0, n1, underflow, overflow, operation = Enum.Operation.Addition) {
         if (typeof operation === "string")
             operation = Enum.OperationFromString(operation);
@@ -505,16 +502,24 @@ class FeedtapeArray {
 }
 const levelText = document.getElementById("level");
 const scoreText = document.getElementById("score");
-const scoreGateText = document.getElementById("score-gate");
-const scoreGateRelText = document.getElementById("score-gate-rel");
-const scoreGatePercentText = document.getElementById("score-gate-percent");
+const lineClearText = document.getElementById("line-clear");
+const lineClearRelText = document.getElementById("line-clear-rel");
+const highScoreText = document.getElementById("highscore");
+const newHighScoreBadge = document.getElementById("new-highscore");
 class Game {
+    static ResetHighScore = false;
+    static ResetSettings = false;
+    static loadHighScore() {
+        let highscore = localStorage.getItem("HighScore");
+        Game.highScore = highscore ? parseInt(highscore) : 0;
+        highScoreText.textContent = Game.highScore.toString();
+    }
     static drawScoreText() {
         levelText.textContent = Game.LevelNumber.toString();
         scoreText.textContent = Game.Score.toString();
-        scoreGateText.textContent = Game.Level.ClearGate.toString() + " line(s)";
-        scoreGateRelText.textContent = (Game.Level.ClearGate - Game.linesCleared).toString() + " line(s)";
-        scoreGatePercentText.textContent = Math.trunc((Game.linesCleared / Game.Level.ClearGate) * 100).toString();
+        lineClearRelText.textContent = (Game.Level.ClearGate - Game.linesCleared).toString();
+        const relClearGate = (Game.Level.ClearGate - (Game.LevelIndex > 0 ? Game.LastLevel.ClearGate : 0));
+        lineClearText.textContent = relClearGate.toString() + " line(s)";
     }
     static linesCleared = 0;
     static get LinesCleared() {
@@ -532,13 +537,10 @@ class Game {
         return Game.highScore;
     }
     static set HighScore(score) {
-        Game.highScore = score;
-        try {
-            localStorage.setItem("HighScore", Game.score.toString());
-        }
-        catch (error) {
-            alert(`Failed to save highscore: ${error}`);
-        }
+        Game.highScore = Math.max(score, Game.highScore);
+        localStorage.setItem("HighScore", Game.highScore.toString());
+        highScoreText.textContent = Game.highScore.toString();
+        newHighScoreBadge.classList.remove("new-highscore");
     }
     static score = 0;
     static set Score(score) {
@@ -547,6 +549,14 @@ class Game {
             Game.Level = Game.LevelIndex + 1;
         }
         Game.drawScoreText();
+        if (Game.score > Game.highScore) {
+            highScoreText.textContent = Game.score.toString();
+            newHighScoreBadge.classList.add("new-highscore");
+        }
+        else {
+            highScoreText.textContent = (Game.HighScore ?? 0).toString();
+            newHighScoreBadge.classList.remove("new-highscore");
+        }
     }
     static get Score() {
         return Game.score;
@@ -676,6 +686,9 @@ class Game {
     static get Level() {
         return Levels.get(this.LevelIndex);
     }
+    static get LastLevel() {
+        return Levels.get(this.LevelIndex - 1);
+    }
     static get NextLevel() {
         return Levels.get(this.LevelIndex + 1);
     }
@@ -716,10 +729,6 @@ class Game {
         return Game._time;
     }
     static Reset() {
-        if (!Game.HighScore) {
-            let highscore = localStorage.getItem("HighScore");
-            Game.highScore = highscore ? parseInt(highscore) : 0;
-        }
         if (Game.score > Game.HighScore)
             Game.HighScore = Game.score;
         Game._running = false;
@@ -744,6 +753,7 @@ class Game {
                 Game._data[y][x] = 0;
         }
     }
+    static ReloadPage = () => window.location.reload();
     static NewGame() {
         Game.Reset();
     }
@@ -1073,6 +1083,8 @@ class Signal {
 }
 const settingsWin = document.getElementById("settings");
 const Settings = {
+    ResetSettings: settingsWin?.querySelector("#settings-advanced-reset-settings"),
+    ResetHighScore: settingsWin?.querySelector("#settings-advanced-reset-highscore"),
     MaxSpeed: settingsWin?.querySelector("#settings-game-max-speed"),
     BlockScale: settingsWin?.querySelector("#settings-fun-block-scale"),
     LockDelay: settingsWin?.querySelector("#settings-game-lock-delay"),
@@ -1102,29 +1114,65 @@ const Settings = {
 const SettingsBuffer = new Map();
 const settingsTitle = document.getElementById("settings-title");
 function LoadSettings() {
-    for (let i = 0; i < localStorage.length; i++) {
-        try {
+    if (localStorage.getItem("SETTINGS/ResetHighScore")) {
+        localStorage.removeItem("SETTINGS/ResetHighScore");
+        localStorage.removeItem("HighScore");
+    }
+    Game.loadHighScore();
+    if (localStorage.getItem("SETTINGS/ResetSettings")) {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
             let k = localStorage.key(i);
             if (!k || !k.startsWith("SETTINGS/"))
                 continue;
-            const strValue = localStorage.getItem(k);
-            if (!strValue)
-                continue;
-            k = k.slice("SETTINGS/".length);
-            const jsonValue = JSON.parse(strValue);
-            let tValue = jsonValue.value;
-            switch (jsonValue.type) {
-                case "boolean":
-                    tValue = Utils.parseBoolean(tValue);
+            keys.push(k);
+        }
+        for (const k of keys)
+            localStorage.removeItem(k);
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+        let k = localStorage.key(i);
+        if (!k || !k.startsWith("SETTINGS/"))
+            continue;
+        const strValue = localStorage.getItem(k);
+        if (!strValue)
+            continue;
+        k = k.slice("SETTINGS/".length);
+        const jsonValue = JSON.parse(strValue);
+        const el = document.getElementById(jsonValue.el);
+        if (!el)
+            continue;
+        let tValue = jsonValue.value;
+        switch (jsonValue.type) {
+            case "number":
+                tValue = parseFloat(tValue);
+                break;
+            default:
+                break;
+        }
+        setAttr(Game, k, tValue);
+        const label = document.getElementById(jsonValue.el + "-label");
+        if (label)
+            label.textContent = tValue.toString();
+        if (el instanceof HTMLInputElement) {
+            switch (el.type) {
+                case "range":
                 case "number":
-                    tValue = parseFloat(tValue);
-                case "string":
-                    setAttr(Game, k, tValue);
+                    if (el.classList.contains("percent"))
+                        el.valueAsNumber = tValue * parseFloat(el.max);
+                    else
+                        el.valueAsNumber = tValue;
+                    break;
+                case "checkbox":
+                    el.checked = tValue;
+                    break;
+                default:
+                    el.value = jsonValue.value;
                     break;
             }
         }
-        catch (error) {
-            alert(`Error whilst loading data: ${error}`);
+        else {
+            el.textContent = jsonValue.value;
         }
     }
 }
@@ -1141,21 +1189,34 @@ function UpdateSettingsBuffer(k, data) {
     SettingsBuffer.set(k, data);
     settingsTitle.textContent = "Settings*";
 }
+const DestructiveFuncs = [Game.ReloadPage];
 function WriteSettingsBuffer() {
+    const funcs = [];
     for (const [k, v] of SettingsBuffer.entries()) {
-        setAttr(Game, k, JSON.stringify({ value: v.value, type: typeof v.value }));
-        localStorage.setItem(`SETTINGS/${k}`, v.value.toString());
+        setAttr(Game, k, v.value);
+        localStorage.setItem(`SETTINGS/${k}`, JSON.stringify({ value: v.value, type: typeof v.value, el: v.el.id }));
         if (v.funcs && v.funcs.length !== 0) {
             for (const f of v.funcs) {
                 let x = getAttr(Game, f);
-                if (x === undefined)
+                if (x === undefined || funcs.indexOf(x) !== -1)
                     continue;
-                x();
+                funcs.push(x);
             }
         }
     }
     SettingsBuffer.clear();
     settingsTitle.textContent = "Settings";
+    const destructiveFuncs = [];
+    for (const f of funcs) {
+        const dI = DestructiveFuncs.indexOf(f);
+        if (dI !== -1) {
+            destructiveFuncs[dI] = f;
+            continue;
+        }
+        f();
+    }
+    for (const f of destructiveFuncs)
+        f();
 }
 const RejectSettingsBuffer = new Signal();
 RejectSettingsBuffer.Connect(() => {
@@ -1414,7 +1475,8 @@ class BlockInstance extends Block {
         if (!this.IsValidPosition(undefined, undefined, this.Shapes[newRot])) {
             for (let i = 1; i <= this.Shapes[newRot][0].length; i++) {
                 if (this.IsValidPosition((this.targetPos?.X ?? 0) - i, undefined, this.Shapes[newRot])) {
-                    this.tween.stop();
+                    this._x = this.targetPos?.X ?? 0;
+                    // this.tween.stop();
                     this.Rotation = newRot;
                     this._x = (this.targetPos?.X ?? 0) - i;
                     this.targetPos = new Point(this._x, this.targetPos?.Y ?? 0);
@@ -1422,7 +1484,8 @@ class BlockInstance extends Block {
                     return true;
                 }
                 if (this.IsValidPosition((this.targetPos?.X ?? 0) + i, undefined, this.Shapes[newRot])) {
-                    this.tween.stop();
+                    this._x = this.targetPos?.X ?? 0;
+                    // this.tween.stop();
                     this.Rotation = newRot;
                     this._x = (this.targetPos?.X ?? 0) + i;
                     this.targetPos = new Point(this._x, this.targetPos?.Y ?? 0);
@@ -1728,8 +1791,22 @@ function stepRange(range, dir = 1) {
     const int = range.classList.contains("int");
     return clamp((int ? parseInt : parseFloat)(range.value) + (getRangeStep(range) * dir), (int ? parseInt : parseFloat)(range.min), (int ? parseInt : parseFloat)(range.max));
 }
-const heldKeys = { "Shift": false, "Control": false, "Meta": false };
+const heldKeys = {};
 const keyThreads = {};
+var pausedFromFocusLoss;
+window.addEventListener("focus", () => {
+    if (pausedFromFocusLoss && Game.Paused)
+        Game.TogglePause(false);
+    pausedFromFocusLoss = false;
+});
+window.addEventListener("blur", () => {
+    for (const k of Object.keys(heldKeys))
+        heldKeys[k] = false;
+    if (!Game.Paused) {
+        Game.TogglePause(true);
+        pausedFromFocusLoss = true;
+    }
+});
 async function handleKeypress(event) {
     let eventKey = event.key;
     if (eventKey === "Tab" && heldKeys.Shift)
@@ -1861,8 +1938,6 @@ window.addEventListener("keydown", async (event) => {
         }, isMoveKey ? Game.MoveKeyRepeatDelay : Game.KeyRepeatDelay);
     }
 }, true);
-Game.DrawGrid();
-Game.NewGame();
 document.getElementById("pause-resume")?.addEventListener("click", () => {
     if (!Game.Running) {
         Game.StartGame();
@@ -1882,6 +1957,16 @@ document.getElementById("pause-mods")?.addEventListener("click", () => {
 });
 document.getElementById("mods-back")?.addEventListener("click", () => {
     document.getElementById("mods")?.classList.remove("active");
+    updateSelectionButtons();
+});
+document.getElementById("pause-help")?.addEventListener("click", () => {
+    if (document.querySelector(".modal.active"))
+        return;
+    document.getElementById("help")?.classList.add("active");
+    updateSelectionButtons();
+});
+document.getElementById("help-back")?.addEventListener("click", () => {
+    document.getElementById("help")?.classList.remove("active");
     updateSelectionButtons();
 });
 document.getElementById("pause-about")?.addEventListener("click", () => {
@@ -1931,24 +2016,115 @@ document.querySelectorAll("details").forEach(el => {
         `;
     });
 });
+const isMac = navigator.platform === "MacIntel";
 const keyTranslationMap = {
-    " ": "Space"
+    "0": "",
+    "1": "",
+    "2": "",
+    "3": "",
+    "4": "",
+    "5": "",
+    "6": "",
+    "7": "",
+    "8": "",
+    "9": "",
+    a: "",
+    b: "",
+    c: "",
+    d: "",
+    e: "",
+    f: "",
+    g: "",
+    h: "",
+    i: "",
+    j: "",
+    k: "",
+    l: "",
+    m: "",
+    n: "",
+    o: "",
+    p: "",
+    q: "",
+    r: "",
+    s: "",
+    t: "",
+    u: "",
+    v: "",
+    w: "",
+    x: "",
+    y: "",
+    z: "",
+    Alt: "",
+    "'": "",
+    ArrowDown: "",
+    ArrowLeft: "",
+    ArrowRight: "",
+    ArrowUp: "",
+    "*": "",
+    Backspace: "",
+    "[": "",
+    "]": "",
+    "<": "",
+    ">": "",
+    "^": "",
+    ":": "",
+    ",": "",
+    Control: "",
+    Delete: "",
+    End: "",
+    Enter: "",
+    "=": "",
+    Escape: "",
+    "!": "",
+    F1: "",
+    F2: "",
+    F3: "",
+    F4: "",
+    F5: "",
+    F6: "",
+    F7: "",
+    F8: "",
+    F9: "",
+    F10: "",
+    F11: "",
+    F12: "",
+    Home: "",
+    Insert: "",
+    "-": "",
+    PageDown: "",
+    PageUp: "",
+    ".": "",
+    "+": "",
+    PrintScreen: "",
+    "?": "",
+    "\"": "",
+    ";": "",
+    Shift: "",
+    "\\": "",
+    "/": "",
+    Space: "",
+    Tab: "",
+    "~": "",
+    Meta: "",
+    mac_Command: "",
+    mac_Option: ""
 };
+for (const [key, symbol] of Object.entries(keyTranslationMap)) {
+    if (key.length === 1 && key.toLowerCase() !== key) {
+        keyTranslationMap[key.toUpperCase()] = `${keyTranslationMap.Shift}${symbol}`;
+        continue;
+    }
+    if (isMac && key === "Meta" || key === "Alt") {
+        if (key === "Meta")
+            keyTranslationMap[key] = keyTranslationMap.mac_Command;
+        if (key === "Alt")
+            keyTranslationMap[key] = keyTranslationMap.mac_Option;
+        continue;
+    }
+}
 function translateKey(k, reverse = false) {
     if (keyTranslationMap[k])
         return keyTranslationMap[k];
-    if (!reverse) {
-        if (k.length === 1)
-            return k.toUpperCase();
-        if (k.startsWith("Arrow"))
-            return `${k.substring(5)} Arrow`;
-    }
-    else {
-        if (k.length === 1)
-            return k.toLowerCase();
-        if (k.endsWith(" Arrow"))
-            return `Arrow${k.substring(0, k.lastIndexOf(" Arrow"))}`;
-    }
     return k;
 }
 document.querySelectorAll("button.keybind").forEach(el => {
@@ -2004,9 +2180,18 @@ document.addEventListener("click", event => {
         open(trg.href);
     }
 });
-let readme = await fetch("./README.md");
-readme = await readme.text();
-readme = await marked.parse(readme);
-const rmt = document.getElementById("about-readme");
-if (rmt)
-    rmt.innerHTML = readme;
+LoadSettings();
+Game.DrawGrid();
+Game.NewGame();
+async function genReadme(id, path) {
+    let readme = await fetch(path);
+    readme = await readme.text();
+    readme = await marked.parse(readme);
+    const rmt = document.getElementById(`${id}-readme`);
+    if (rmt)
+        rmt.innerHTML = readme;
+}
+const readmePages = { about: "./README.md", help: "./HELP.md" };
+for (const [id, path] of Object.entries(readmePages)) {
+    genReadme(id, path);
+}
