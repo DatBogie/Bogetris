@@ -62,13 +62,14 @@ var SFX = {
 };
 
 // 'Click to Enable Audio' prompt (needed to make sfxr not error, since <audio>s need a proper *mouse* input before working)
-const clickWar = document.getElementById("click-req");
+var clickWar = document.getElementById("click-req") as HTMLElement;
 clickWar?.addEventListener("click",()=>{
     updateSelectionButtons();
     clickWar.style.pointerEvents = "none !important";
     clickWar.style.opacity = "0";
     setTimeout(()=>{
         clickWar?.remove();
+        clickWar = undefined as unknown as HTMLElement;
     },600);
 });
 
@@ -76,6 +77,10 @@ var __sfx_is_loaded:boolean = false;
 
 var PauseMenuSel:number = 0;
 var PauseBtns:HTMLElement[] = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
+
+function bounceAnim(el:HTMLElement) {
+    el.animate([{ scale:.925 },{ scale:1 }],{easing:"ease",duration:100});
+}
 
 function loadSFX() {
     __sfx_is_loaded = true;
@@ -441,6 +446,7 @@ class Game {
         levelText.textContent = Game.LevelNumber.toString();
         scoreText.textContent = Game.Score.toString();
         lineClearRelText.textContent = (Game.Level.ClearGate-Game.linesCleared).toString()+" line(s)";
+        bounceAnim(document.getElementById("score-box") as HTMLElement);
     }
     private static linesCleared:number = 0;
     static get LinesCleared() : number {
@@ -667,14 +673,14 @@ class Game {
         Game.RedrawHeldBlock();
         if (!Game.heldBlock) return;
         SFX.hold.play();
-        Game.HoldCanvas.Canvas.animate([{ scale:.9 },{ scale:1 }],{easing:"ease",duration:100});
+        bounceAnim(Game.HoldCanvas.Canvas);
     }
     static RandomBlock() : BlockInstance|undefined {
         Game.LockMovement = false;
         Game.blockFeed.push(Game.randBlock());
         const newBlock:BlockInstance|undefined = Game.blockFeed.get(0)? new BlockInstance(Game.blockFeed.get(0) as Block) : undefined;
         Game.RedrawNextBlocks();
-        Game.NextCanvas.Canvas.animate([{ scale:.9 },{ scale:1 }],{easing:"ease",duration:100});
+        bounceAnim(Game.NextCanvas.Canvas);
         return newBlock;
     }
     static get NextBlock() : Block|undefined {
@@ -887,7 +893,7 @@ class Game {
             document.getElementById("pause-ind")?.classList.add("paused");
         else
             document.getElementById("pause-ind")?.classList.remove("paused");
-        document.querySelectorAll(".game-canvas, .right-stack, .left-stack").forEach(canvas=>{
+        document.querySelectorAll(".game-canvas, .right-stack").forEach(canvas=>{
             if (Game.Paused)
                 canvas.classList.add("paused");
             else
@@ -1682,6 +1688,7 @@ window.addEventListener("blur",()=>{
 });
 
 async function handleKeypress(event:KeyboardEvent) {
+    if (clickWar) return event.preventDefault();
     let eventKey = event.key;
     if (eventKey === "Tab" && heldKeys.Shift)
         eventKey = "ShiftTab";

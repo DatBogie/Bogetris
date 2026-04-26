@@ -62,18 +62,22 @@ var SFX = {
     hold: new Sound(__sfx_hold)
 };
 // 'Click to Enable Audio' prompt (needed to make sfxr not error, since <audio>s need a proper *mouse* input before working)
-const clickWar = document.getElementById("click-req");
+var clickWar = document.getElementById("click-req");
 clickWar?.addEventListener("click", () => {
     updateSelectionButtons();
     clickWar.style.pointerEvents = "none !important";
     clickWar.style.opacity = "0";
     setTimeout(() => {
         clickWar?.remove();
+        clickWar = undefined;
     }, 600);
 });
 var __sfx_is_loaded = false;
 var PauseMenuSel = 0;
 var PauseBtns = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
+function bounceAnim(el) {
+    el.animate([{ scale: .925 }, { scale: 1 }], { easing: "ease", duration: 100 });
+}
 function loadSFX() {
     __sfx_is_loaded = true;
     window.removeEventListener("click", loadSFX);
@@ -479,6 +483,7 @@ class Game {
         levelText.textContent = Game.LevelNumber.toString();
         scoreText.textContent = Game.Score.toString();
         lineClearRelText.textContent = (Game.Level.ClearGate - Game.linesCleared).toString() + " line(s)";
+        bounceAnim(document.getElementById("score-box"));
     }
     static linesCleared = 0;
     static get LinesCleared() {
@@ -712,14 +717,14 @@ class Game {
         if (!Game.heldBlock)
             return;
         SFX.hold.play();
-        Game.HoldCanvas.Canvas.animate([{ scale: .9 }, { scale: 1 }], { easing: "ease", duration: 100 });
+        bounceAnim(Game.HoldCanvas.Canvas);
     }
     static RandomBlock() {
         Game.LockMovement = false;
         Game.blockFeed.push(Game.randBlock());
         const newBlock = Game.blockFeed.get(0) ? new BlockInstance(Game.blockFeed.get(0)) : undefined;
         Game.RedrawNextBlocks();
-        Game.NextCanvas.Canvas.animate([{ scale: .9 }, { scale: 1 }], { easing: "ease", duration: 100 });
+        bounceAnim(Game.NextCanvas.Canvas);
         return newBlock;
     }
     static get NextBlock() {
@@ -955,7 +960,7 @@ class Game {
             document.getElementById("pause-ind")?.classList.add("paused");
         else
             document.getElementById("pause-ind")?.classList.remove("paused");
-        document.querySelectorAll(".game-canvas, .right-stack, .left-stack").forEach(canvas => {
+        document.querySelectorAll(".game-canvas, .right-stack").forEach(canvas => {
             if (Game.Paused)
                 canvas.classList.add("paused");
             else
@@ -1738,6 +1743,8 @@ window.addEventListener("blur", () => {
     }
 });
 async function handleKeypress(event) {
+    if (clickWar)
+        return event.preventDefault();
     let eventKey = event.key;
     if (eventKey === "Tab" && heldKeys.Shift)
         eventKey = "ShiftTab";
