@@ -33,6 +33,8 @@ class Sound {
             else
                 this.sound = sfxr.toAudio(this.json);
         this.volume = Game.AudioVol / 100;
+        if (this.vol <= 0)
+            return;
         this.sound.play();
     }
     get volume() {
@@ -875,6 +877,7 @@ class Game {
                 await sleep(Game.FixedAnimClearTime ? Game.AnimClearTime / Game.Width : Game.AnimClearTime);
             }
         }
+        return;
     }
     static async handleClears() {
         var cFlag = false;
@@ -899,7 +902,13 @@ class Game {
             for (let y = Game.Height - 1; y > 0; y--) {
                 for (let x = 0; x < Game.Width; x++) {
                     Game.InstantDrop(x, y);
+                }
+            }
+            await sleep(Game.FixedAnimClearTime ? Game.AnimClearTime / Game.Width : Game.AnimClearTime);
+            for (let y = Game.Height - 1; y > 0; y--) {
+                if (Game._data[y].every(col => col !== 0)) {
                     cFlag = true;
+                    break;
                 }
             }
         }
@@ -911,7 +920,8 @@ class Game {
         Game.holdCooldown = false;
         if (self !== Game.CurrentBlock)
             return;
-        await Game.handleClears();
+        while (await Game.handleClears())
+            ;
         Game.RedrawCanvas();
         Game.CurrentBlock = Game.RandomBlock();
         if (!Game.CurrentBlock?.IsValidPosition()) {
@@ -2123,3 +2133,4 @@ const readmePages = { about: "./README.md", help: "./HELP.md" };
 for (const [id, path] of Object.entries(readmePages)) {
     genReadme(id, path);
 }
+document.getElementById("pause-text").innerHTML = "<b>Bogetris</b>";

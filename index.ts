@@ -33,6 +33,7 @@ class Sound {
         else
             this.sound = sfxr.toAudio(this.json);
         this.volume = Game.AudioVol/100;
+        if (this.vol <= 0) return;
         this.sound.play();
     }
     get volume() : number {
@@ -804,7 +805,7 @@ class Game {
             }
         }
     }
-    static async InstantDrop(px:number,py:number) {
+    static async InstantDrop(px:number,py:number) : Promise<undefined> {
         if (py >= Game.Height-1 || Game._data[py][px] === undefined) return;
         for (let y = py+1; y<Game.Height; y++) {
             if (Game._data[y][px] !== 0) return;
@@ -816,6 +817,7 @@ class Game {
                 await sleep(Game.FixedAnimClearTime? Game.AnimClearTime/Game.Width : Game.AnimClearTime);
             }
         }
+        return;
     }
     private static async handleClears() : Promise<boolean> {
         var cFlag:boolean = false;
@@ -839,7 +841,13 @@ class Game {
             for (let y=Game.Height-1; y>0; y--) {
                 for (let x=0; x<Game.Width; x++) {
                     Game.InstantDrop(x,y);
+                }
+            }
+            await sleep(Game.FixedAnimClearTime? Game.AnimClearTime/Game.Width : Game.AnimClearTime);
+            for (let y=Game.Height-1; y>0;  y--) {
+                if (Game._data[y].every(col=>col!==0)) {
                     cFlag = true;
+                    break;
                 }
             }
         }
@@ -849,7 +857,7 @@ class Game {
     static async BlockStamped(self:BlockInstance) {
         Game.holdCooldown = false;
         if (self !== Game.CurrentBlock) return;
-        await Game.handleClears();
+        while (await Game.handleClears());
         Game.RedrawCanvas();
         Game.CurrentBlock = Game.RandomBlock();
         if (!Game.CurrentBlock?.IsValidPosition()) {
@@ -2070,3 +2078,5 @@ const readmePages = { about:"./README.md", help:"./HELP.md" };
 for (const [id,path] of Object.entries(readmePages)) {
     genReadme(id,path);
 }
+
+(document.getElementById("pause-text") as HTMLElement).innerHTML = "<b>Bogetris</b>";
