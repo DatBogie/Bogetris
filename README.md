@@ -1,16 +1,10 @@
-# Tetris Web
+# Bogetris
 
 APCSP 2026 Create Task Project
 
-## Modding Links
-
-- See the [Wiki](about:blank)
-- See the [Example Mod](./test-mod.tetrismod.jsonc)
-- [Open the Toolkit](./Modding/index.html)
-
 ## License
 
-This project is licensed under the [CC BY-SA 4.0 License](https://raw.githubusercontent.com/DatBogie/Tetris_Web/refs/heads/main/LICENSE).
+This project is licensed under the [CC BY-SA 4.0 License](https://raw.githubusercontent.com/DatBogie/Bogetris/refs/heads/main/LICENSE).
 
 ## Attributions
 

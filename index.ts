@@ -1,8 +1,66 @@
+// Import Libraries
 import { sfxr } from "jsfxr";
-import click from "./Sounds/click.json" with { type: 'json' };
-import { Tween, Easing } from "@tweenjs/tween.js";
-import { marked } from "marked";
+import { Tween, Easing } from "@tweenjs/tween.js"; // Easing/Tweening properties
+import { marked } from "marked"; // Markdown renderer
 
+// Import SFX
+import __sfx_click from "./Sounds/click.json" with { type: 'json' };
+import __sfx_clear from "./Sounds/clear.json" with { type: 'json' };
+import __sfx_gameover from "./Sounds/game-over.json" with { type: 'json' };
+import __sfx_levelup from "./Sounds/level-up.json" with { type: 'json' };
+import __sfx_harddrop from "./Sounds/hard-drop.json" with { type: 'json' };
+import __sfx_newbest from "./Sounds/new-best.json" with { type: 'json' };
+import __sfx_block_rotate from "./Sounds/block-rotate.json" with { type: 'json' };
+import __sfx_negative from "./Sounds/negative.json" with { type: 'json' };
+import __sfx_block_move from "./Sounds/block-move.json" with { type: 'json' };
+import __sfx_hold from "./Sounds/hold.json" with { type: 'json' };
+
+// Wrapper for sfxr sounds implementing dynamic volume via reconstruction
+class Sound {
+    constructor(json:Record<string,any>) {
+        if (__sfx_is_loaded) this.sound = sfxr.toAudio(json);
+        this.json = json;
+        this.vol = 1;
+        this.gain = json.sound_vol;
+    }
+    private sound:jsfxrSound|undefined;
+    private json:Record<string,any>;
+    private vol:number;
+    private readonly gain:number;
+    play() : void {
+        if (!this.sound)
+            if (!__sfx_is_loaded) return;
+        else
+            this.sound = sfxr.toAudio(this.json);
+        this.volume = Game.AudioVol/100;
+        this.sound.play();
+    }
+    get volume() : number {
+        return this.vol;
+    }
+    set volume(vol:number) {
+        if (this.vol === vol) return;
+        this.vol = vol;
+        this.json.sound_vol = this.gain*vol;
+        this.sound = sfxr.toAudio(this.json);
+    }
+}
+
+// Declare Sounds
+var SFX = {
+    click: new Sound(__sfx_click),
+    clear: new Sound(__sfx_clear),
+    gameover: new Sound(__sfx_gameover),
+    levelup: new Sound(__sfx_levelup),
+    harddrop: new Sound(__sfx_harddrop),
+    newbest: new Sound(__sfx_newbest),
+    blockrotate: new Sound(__sfx_block_rotate),
+    negative: new Sound(__sfx_negative),
+    blockMove: new Sound(__sfx_block_move),
+    hold: new Sound(__sfx_hold)
+};
+
+// 'Click to Enable Audio' prompt (needed to make sfxr not error, since <audio>s need a proper *mouse* input before working)
 const clickWar = document.getElementById("click-req");
 clickWar?.addEventListener("click",()=>{
     updateSelectionButtons();
@@ -13,47 +71,14 @@ clickWar?.addEventListener("click",()=>{
     },600);
 });
 
-class Sound {
-    constructor(json:Record<string,any>) {
-        this.sound = sfxr.toAudio(json);
-        this.json = json;
-        this.vol = 1;
-        this.gain = json.sound_vol;
-    }
-    private sound:jsfxrSound;
-    private json:Record<string,any>;
-    private vol:number;
-    private readonly gain:number;
-    play() : void {
-        this.sound.play();
-    }
-    get volume() : number {
-        return this.vol;
-    }
-    set volume(vol:number) {
-        this.vol = vol;
-        this.json.sound_vol = this.gain*vol;
-        this.sound = sfxr.toAudio(this.json);
-    }
-}
+var __sfx_is_loaded:boolean = false;
 
-var clickSound:Sound;
-
-var PauseMenuSel = 0;
+var PauseMenuSel:number = 0;
 var PauseBtns:HTMLElement[] = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
 
-var __sfx_loaded = false;
 function loadSFX() {
-    __sfx_loaded = true;
-    clickSound = new Sound(click);
+    __sfx_is_loaded = true;
     window.removeEventListener("click",loadSFX);
-}
-
-function playSound(sound:Sound) : boolean {
-    if (!__sfx_loaded) return false;
-    sound.volume = Game.AudioVol/100;
-    sound.play();
-    return true;
 }
 
 function updateSelectionButtons(detailsSel?:HTMLDetailsElement) : void {
@@ -76,8 +101,8 @@ function updateSelectionButtons(detailsSel?:HTMLDetailsElement) : void {
 function focusButton() {
     setTimeout(()=>{
         PauseBtns[PauseMenuSel]?.focus();
-        if (__sfx_loaded)
-            playSound(clickSound);
+        if (__sfx_is_loaded)
+            SFX.click.play();
     },1);
 }
 
@@ -96,8 +121,8 @@ class ArrayWrapper<T> {
     get length() : number {
         return this.data.length;
     }
-    push(...items:never) {
-        this.data.push(items);
+    push(...items:T[]) {
+        this.data.push(...items);
     }
     pop() : T|undefined {
         return this.data.pop();
@@ -108,19 +133,29 @@ class ArrayWrapper<T> {
     set(index:number, value:T) {
         this.data[index] = value;
     }
-    indexOf(searchElement:never, fromIndex?:number) : number {
+    indexOf(searchElement:T, fromIndex?:number) : number {
         return this.data.indexOf(searchElement,fromIndex);
     }
     toString() : string {
         return this.data.toString();
     }
+    values() : T[] {
+        return Object.values(this.data);
+    }
 }
 
 class InfiniteArray<T> extends ArrayWrapper<T> {
-    override get(index: number) : T {
+    override get(index:number) : T {
         if (new NumberRange(0,this.length-1).inRange(index))
             return this.data[index];
         return this.data[this.length-1];
+    }
+}
+class InfiniteLevelArray extends InfiniteArray<Level> {
+    override get(index:number) : Level {
+        if (new NumberRange(0,this.length-1).inRange(index))
+            return this.data[index];
+        return this.data[this.length-1].clone(index);
     }
 }
 
@@ -243,83 +278,6 @@ class Point {
     readonly Y:number;
 }
 
-class ColorPalette {
-    constructor(name:string,blocktheme?:BlockTheme,uitheme?:UITheme,style:Enum.ThemeStyle=Enum.ThemeStyle.Dark) {
-        this.Name = name;
-        this.BlockTheme = blocktheme;
-        this.Style = style;
-        if (uitheme?.Name === undefined || uitheme?.Style === undefined)
-            uitheme?.setPropertiesFromPalette(this);
-        this.UITheme = uitheme;
-    }
-    readonly Name:string;
-    readonly BlockTheme?:BlockTheme;
-    readonly UITheme?:UITheme;
-    readonly Style:Enum.ThemeStyle;
-    private enabled:boolean = false;
-    get Enabled() : boolean {
-        return this.enabled;
-    }
-    set Enabled(enabled:boolean|undefined) {
-        if (enabled === this.enabled) return;
-        this.enabled = enabled === undefined? !this.enabled : enabled;
-        Game.ApplyColorPalettes();
-    }
-}
-
-class BlockTheme {
-    constructor(name:string|undefined,data:Record<string,Color>) {
-        this.name = name;
-        this.Data = data;
-    }
-    private name?:string;
-    get Name() : string|undefined {
-        return this.Name;
-    }
-    readonly Data:Record<string,Color>;
-    private enabled:boolean = false;
-    get Enabled() : boolean {
-        return this.enabled;
-    }
-    set Enabled(enabled:boolean|undefined) {
-        if (enabled === this.enabled) return;
-        this.enabled = enabled === undefined? !this.enabled : enabled;
-        Game.ApplyBlockThemes();
-    }
-}
-
-class UITheme {
-    constructor(name:string|undefined,data:Record<Enum.UIThemeKey,Color>,style?:Enum.ThemeStyle,css?:string) {
-        this.name = name;
-        this.Data = data;
-        this.style = style;
-        this.CSS = css;
-    }
-    private name?:string;
-    get Name() : string|undefined {
-        return this.name;
-    }
-    readonly Data:Record<Enum.UIThemeKey,Color>;
-    readonly CSS?:string;
-    private style?:Enum.ThemeStyle;
-    get Style() : Enum.ThemeStyle|undefined {
-        return this.style;
-    }
-    setPropertiesFromPalette(palette:ColorPalette) : void {
-        this.name ??= palette.Name;
-        this.style ??= palette.Style;
-    }
-    private enabled:boolean = false;
-    get Enabled() : boolean {
-        return this.enabled;
-    }
-    set Enabled(enabled:boolean|undefined) {
-        if (enabled === this.enabled) return;
-        this.enabled = enabled === undefined? !this.enabled : enabled;
-        Game.ApplyUIThemes();
-    }
-}
-
 class Color {
     constructor(r:number, g:number, b:number, opacity:number=1.0) {
         this._rgb = `rgba(${r},${g},${b}`;
@@ -347,9 +305,7 @@ class Color {
         }
         return (!retInt? parseFloat : parseInt)(n);
     }
-    /*
-     * Adapted version of https://gist.github.com/mjackson/5311256 > hslToRgb()
-     */
+    // Adapted version of https://gist.github.com/mjackson/5311256 > hslToRgb()
     static fromHSLA(h:number,s:number,l:number,a?:number) {
         s/=100; l/=100;
         if (s === 0) {
@@ -465,12 +421,13 @@ class FeedtapeArray<T> {
 
 const levelText:HTMLElement = document.getElementById("level") as HTMLElement;
 const scoreText:HTMLElement = document.getElementById("score") as HTMLElement;
-const lineClearText:HTMLElement = document.getElementById("line-clear") as HTMLElement;
 const lineClearRelText:HTMLElement = document.getElementById("line-clear-rel") as HTMLElement;
 const highScoreText:HTMLElement = document.getElementById("highscore") as HTMLElement;
 const newHighScoreBadge:HTMLElement = document.getElementById("new-highscore") as HTMLElement;
 
 class Game {
+    static AutoPause:boolean = true;
+    static LockMovement:boolean = false;
     static ResetHighScore:boolean = false;
     static ResetSettings:boolean = false;
     static loadHighScore() : void {
@@ -481,9 +438,7 @@ class Game {
     private static drawScoreText() {
         levelText.textContent = Game.LevelNumber.toString();
         scoreText.textContent = Game.Score.toString();
-        lineClearRelText.textContent = (Game.Level.ClearGate-Game.linesCleared).toString();
-        const relClearGate:number = (Game.Level.ClearGate-(Game.LevelIndex > 0? Game.LastLevel.ClearGate : 0));
-        lineClearText.textContent = relClearGate.toString()+" line(s)";
+        lineClearRelText.textContent = (Game.Level.ClearGate-Game.linesCleared).toString()+" line(s)";
     }
     private static linesCleared:number = 0;
     static get LinesCleared() : number {
@@ -493,7 +448,6 @@ class Game {
         Game.linesCleared = lines;
         Game.drawScoreText();
     }
-    static MaxSpeed:number = 4.0;
     static BlockScale:number = 1.0;
     static LockDelay:number = 500;
     private static highScore:number;
@@ -515,7 +469,10 @@ class Game {
         Game.drawScoreText();
         if (Game.score > Game.highScore) {
             highScoreText.textContent = Game.score.toString();
-            newHighScoreBadge.classList.add("new-highscore");
+            if (!newHighScoreBadge.classList.contains("new-highscore")) {
+                newHighScoreBadge.classList.add("new-highscore");
+                SFX.newbest.play();
+            }
         } else {
             highScoreText.textContent = (Game.HighScore ?? 0).toString();
             newHighScoreBadge.classList.remove("new-highscore");
@@ -547,52 +504,6 @@ class Game {
     static Anims:boolean = true;
     static Physics:boolean = false;
     static KeyBinds:Record<string,string> = {};
-    static BlockThemes:Record<string,BlockTheme> = {
-        "Default": new BlockTheme(undefined,{
-            "I": Color.fromHex("#91d7e3"),
-            "J": Color.fromHex("#eed49f"),
-            "L": Color.fromHex("#c6a0f6"),
-            "O": Color.fromHex("#a6da95"),
-            "S": Color.fromHex("#ed8796"),
-            "T": Color.fromHex("#b7bdf8"),
-            "Z": Color.fromHex("#f5a97f")
-        })
-    };
-    static UIThemes:Record<string,UITheme> = {
-        "Default": new UITheme(undefined,{
-            [Enum.UIThemeKey.olc]: Color.fromHSLA(0,0,100,.25),
-            [Enum.UIThemeKey.rosewater]: Color.fromHex("#f4dbd6"),
-            [Enum.UIThemeKey.flamingo]: Color.fromHex("#f0c6c6"),
-            [Enum.UIThemeKey.pink]: Color.fromHex("#f5bde6"),
-            [Enum.UIThemeKey.mauve]: Color.fromHex("#c6a0f6"),
-            [Enum.UIThemeKey.red]: Color.fromHex("#ed8796"),
-            [Enum.UIThemeKey.maroon]: Color.fromHex("#ee99a0"),
-            [Enum.UIThemeKey.peach]: Color.fromHex("#f5a97f"),
-            [Enum.UIThemeKey.yellow]: Color.fromHex("#eed496"),
-            [Enum.UIThemeKey.green]: Color.fromHex("#a6da95"),
-            [Enum.UIThemeKey.teal]: Color.fromHex("#8bd5ca"),
-            [Enum.UIThemeKey.sky]: Color.fromHex("#91d7e3"),
-            [Enum.UIThemeKey.sapphire]: Color.fromHex("#7dc4e4"),
-            [Enum.UIThemeKey.blue]: Color.fromHex("#8aadf4"),
-            [Enum.UIThemeKey.lavender]: Color.fromHex("#b7bdf8"),
-            [Enum.UIThemeKey.text]: Color.fromHex("#cad3f5"),
-            [Enum.UIThemeKey.subtext1]: Color.fromHex("#b8c0e0"),
-            [Enum.UIThemeKey.subtext0]: Color.fromHex("#a5adcb"),
-            [Enum.UIThemeKey.overlay2]: Color.fromHex("#939ab7"),
-            [Enum.UIThemeKey.overlay1]: Color.fromHex("#8087a2"),
-            [Enum.UIThemeKey.overlay0]: Color.fromHex("#6e738d"),
-            [Enum.UIThemeKey.surface2]: Color.fromHex("#5b6078"),
-            [Enum.UIThemeKey.surface1]: Color.fromHex("#494d64"),
-            [Enum.UIThemeKey.surface0]: Color.fromHex("#363a4f"),
-            [Enum.UIThemeKey.base]: Color.fromHex("#24273a"),
-            [Enum.UIThemeKey.mantle]: Color.fromHex("#1e2030"),
-            [Enum.UIThemeKey.crust]: Color.fromHex("#181926"),
-            [Enum.UIThemeKey.accent]: Color.fromHex("#b7bdf8")
-        })
-    };
-    static ColorPalettes:Record<string,ColorPalette> = {
-        "Default": new ColorPalette("Catppuccin Macchiato",Game.BlockThemes.Default,Game.UIThemes.Default,Enum.ThemeStyle.Dark)
-    };
     private static filterActive(dict:Record<any,any>,callback?:(k:string, theme:any) => void,invert:boolean=false) : Record<any,any> {
         const ret:Record<any,any> = {};
         for (const [k, theme] of Object.entries(dict))
@@ -601,27 +512,6 @@ class Game {
                 if (callback) callback(k, theme);
             }
         return ret;
-    }
-    static get ActiveUIThemes() : Record<string,ColorPalette> {
-        return Game.filterActive(Game.UIThemes);
-    }
-    static get ActiveBlockThemes() : Record<string,ColorPalette> {
-        return Game.filterActive(Game.BlockThemes);
-    }
-    static get ActiveColorPalettes() : Record<string,ColorPalette> {
-        return Game.filterActive(Game.ColorPalettes);
-    }
-    static ApplyUIThemes() {
-
-    }
-    static ApplyBlockThemes() {
-        
-    }
-    static ApplyColorPalettes() {
-        Game.filterActive(Game.ColorPalettes,(k:string, theme:ColorPalette)=>{
-            if (theme.BlockTheme) theme.BlockTheme.Enabled = true;
-            if (theme.UITheme) theme.UITheme.Enabled = true;
-        });
     }
     static get PixelSize() : number {
         return Math.min(Game.GameCanvas.Canvas.width/Game.Width,Game.GameCanvas.Canvas.height/Game.Height);
@@ -655,6 +545,7 @@ class Game {
         return Levels.get(this.LevelIndex+1);
     }
     private static set Level(level:number) {
+        if (level > this.LevelIndex) SFX.levelup.play();
         this.LevelIndex = level;
         this.LevelSpeed = this.Level.Speed;
         Game.drawScoreText();
@@ -693,14 +584,11 @@ class Game {
     static get Data() : readonly (readonly (number|BlockData)[])[] {
         return Game._data;
     }
-    static get Time() : number {
-        return Game._time;
-    }
     static Reset() {
         if (Game.score > Game.HighScore) Game.HighScore = Game.score;
         Game._running = false;
         Game.TogglePause(true);
-        Game._time = 0;
+        Game.LockMovement = false;
         Game.Level = 0;
         Game.linesCleared = 0;
         Game.LevelSpeed = 1;
@@ -728,7 +616,7 @@ class Game {
         Game._thread_id = setTimeout(Game.GameTick,Game.Speed);
     }
     private static async GameTick() {
-        if (Game.Paused) return Game.rgt();
+        if (Game.Paused || Game.LockMovement) return Game.rgt();
         const moveRes:boolean|undefined = await Game.CurrentBlock?.Move(0,1,undefined,true);
         if (Game.CurrentBlock && moveRes === false && !Game._lock_thread_id) {
             const curBlock = Game.CurrentBlock;
@@ -776,9 +664,11 @@ class Game {
         Game.CurrentBlock?.Draw();
         Game.RedrawHeldBlock();
         if (!Game.heldBlock) return;
+        SFX.hold.play();
         Game.HoldCanvas.Canvas.animate([{ scale:.9 },{ scale:1 }],{easing:"ease",duration:100});
     }
     static RandomBlock() : BlockInstance|undefined {
+        Game.LockMovement = false;
         Game.blockFeed.push(Game.randBlock());
         const newBlock:BlockInstance|undefined = Game.blockFeed.get(0)? new BlockInstance(Game.blockFeed.get(0) as Block) : undefined;
         Game.RedrawNextBlocks();
@@ -933,9 +823,10 @@ class Game {
         Game.BlockCanvas.ClearCanvas();
         for (let y=0; y < Game.Height; y++) {
             if (Game._data[y].every(col=>col!==0)) {
-                await Game.EraseLine(Game, y);
+                SFX.clear.play();
                 lineCount++;
                 Game.LinesCleared++;
+                await Game.EraseLine(Game, y);
                 for (let oY=y-1; oY>=0; oY--) {
                     for (let x=0; x<Game.Width; x++) {
                         Game._data[oY+1][x] = Game._data[oY][x];
@@ -972,6 +863,7 @@ class Game {
             if (el.id === "settings")
                 RejectSettingsBuffer.Fire();
         });
+        const wasPaused:boolean = Game.Paused;
         Game.Paused = paused === undefined? !Game.Paused : paused;
         if (Game.Paused)
             document.getElementById("pause-ind")?.classList.add("paused");
@@ -987,6 +879,7 @@ class Game {
             (document.getElementById("pause-text") as HTMLElement).innerText = "Game Over!";
             (document.getElementById("pause-resume") as HTMLElement).classList.add("hidden");
             (document.getElementById("pause-restart") as HTMLElement).innerText = "Start";
+            if (!wasPaused) SFX.gameover.play();
         } else {
             (document.getElementById("pause-text") as HTMLElement).innerText = "Paused...";
             (document.getElementById("pause-resume") as HTMLElement).classList.remove("hidden");
@@ -1025,9 +918,9 @@ class Signal {
 
 const settingsWin = document.getElementById("settings");
 const Settings = {
+    AutoPause: settingsWin?.querySelector("#settings-auto-pause"),
     ResetSettings: settingsWin?.querySelector("#settings-advanced-reset-settings"),
     ResetHighScore: settingsWin?.querySelector("#settings-advanced-reset-highscore"),
-    MaxSpeed: settingsWin?.querySelector("#settings-game-max-speed"),
     BlockScale: settingsWin?.querySelector("#settings-fun-block-scale"),
     LockDelay: settingsWin?.querySelector("#settings-game-lock-delay"),
     KeyRepeatDelay: settingsWin?.querySelector("#settings-key-repeat-delay"),
@@ -1247,14 +1140,28 @@ class NumberRange {
     static readonly infinite = new NumberRange(-Infinity,Infinity);
 }
 
+const Levels:InfiniteLevelArray = new InfiniteLevelArray([]);
+
 class Level {
-    constructor(name:string, speed:number, clearGate:()=>number=()=>10*(Game.LevelNumber), speedMode:Enum.ModeOperationFunction=Enum.ModeOperation.Multiply, speedRange:NumberRange=NumberRange.infinite, scoreMultiplier?:(index:number)=>number) {
+    constructor(name:string, speed:number, clearGate:()=>number=()=>10*(this.LevelNumber), speedMode:Enum.ModeOperationFunction=Enum.ModeOperation.Multiply, speedRange:NumberRange=NumberRange.infinite, scoreMultiplier?:(index:number)=>number) {
         this.Name = name;
         this.speed = speed;
         this.clearGate = clearGate;
         this.SpeedMode = speedMode;
         this.SpeedRange = speedRange;
         if (scoreMultiplier) this.scoreMultiplier = scoreMultiplier;
+    }
+    clone(index:number) {
+        const lvl:Level = new Level(this.Name,this.Speed,this.clearGate,this.SpeedMode,this.SpeedRange,this.scoreMultiplier);
+        lvl.levelIndex = index;
+        return lvl;
+    }
+    private levelIndex:number|undefined;
+    get LevelNumber() : number {
+        return (this.levelIndex ?? Levels.indexOf(this))+1;
+    }
+    set LevelNumber(i:number) {
+        this.levelIndex = i-1;
     }
     readonly Name:string;
     private readonly speed:number;
@@ -1263,7 +1170,7 @@ class Level {
         return 1+(index/100);
     };
     ScoreMultiplier() {
-        return this.scoreMultiplier(Levels.indexOf(this as never));
+        return this.scoreMultiplier(this.LevelNumber-1);
     }
     readonly SpeedMode:Enum.ModeOperationFunction;
     readonly SpeedRange:NumberRange;
@@ -1274,6 +1181,11 @@ class Level {
         return this.clearGate();
     }
 }
+
+Levels.push(
+    new Level("1",1.0,()=>10,Enum.ModeOperation.Set),
+    new Level("2..",1.15,undefined,(x:number,y:number)=>((y+2)^Game.LevelNumber)/100)
+);
 
 class Block {
     constructor(blockShapes:number[][][], blockData:BlockData, symbol:string) {
@@ -1356,7 +1268,10 @@ class BlockInstance extends Block {
         if (this.dropping) return undefined;
         x+=this.targetPos?.X ?? 0; y+=this.targetPos?.Y ?? 0;
         if (!this.IsValidPosition(x,y)) return !this.dropping? false : undefined;
-        if (isInstantDrop) this.dropping = true;
+        if (isInstantDrop)
+            this.dropping = true;
+        else
+            SFX.blockMove.play();
         this.targetPos = new Point(x,y);
         if (Game.Anims) {
             const tData = {s:new Point(this._x,this._y),e:this.targetPos};
@@ -1374,9 +1289,11 @@ class BlockInstance extends Block {
             });
             var isComplete = false;
             const fin = ()=>{
-                if (isInstantDrop) this.dropping = false;
                 isComplete = true;
-                resolve(undefined);
+                if (isInstantDrop) {
+                    this.dropping = false;
+                    resolve(undefined);
+                }
             };
             this.tween.onComplete(fin);
             this.tween.onStop(fin);
@@ -1388,8 +1305,7 @@ class BlockInstance extends Block {
                     requestAnimationFrame(updateFunc);
             };
             requestAnimationFrame(updateFunc);
-            await comp;
-            await sleep(2);
+            if (isInstantDrop) await comp;
         } else {
             [this._x, this._y] = [this.targetPos.X, this.targetPos.Y];
             this.Draw();
@@ -1399,34 +1315,49 @@ class BlockInstance extends Block {
         return !this.dropping? true : false;
     }
     Rotate(reverse:boolean=false) {
+        const success = ()=>{
+            this.Draw();
+            SFX.blockrotate.play();
+            return true;
+        };
         let dir:number = (reverse) ? -1 : 1;
         const newRot:number = Utils.OverflowOperate(this.Rotation,dir,0,3);
         if (!this.IsValidPosition(undefined,undefined,this.Shapes[newRot])) {
             for (let i=1; i<=this.Shapes[newRot][0].length; i++) {
                 if (this.IsValidPosition((this.targetPos?.X ?? 0)-i,undefined,this.Shapes[newRot])) {
                     this._x = this.targetPos?.X ?? 0;
-                    // this.tween.stop();
                     this.Rotation = newRot;
                     this._x = (this.targetPos?.X ?? 0)-i;
                     this.targetPos =  new Point(this._x,this.targetPos?.Y ?? 0);
-                    this.Draw();
-                    return true;
+                    return success();
                 }
                 if (this.IsValidPosition((this.targetPos?.X ?? 0)+i,undefined,this.Shapes[newRot])) {
                     this._x = this.targetPos?.X ?? 0;
-                    // this.tween.stop();
                     this.Rotation = newRot;
                     this._x = (this.targetPos?.X ?? 0)+i;
                     this.targetPos =  new Point(this._x,this.targetPos?.Y ?? 0);
-                    this.Draw();
-                    return true;
+                    return success();
+                }
+                if (this.IsValidPosition(undefined,(this.targetPos?.Y ?? 0)-i,this.Shapes[newRot])) {
+                    this._y = this.targetPos?.Y ?? 0;
+                    this.Rotation = newRot;
+                    this._y = (this.targetPos?.Y ?? 0)-i;
+                    this.targetPos =  new Point(this.targetPos?.X ?? 0,this._y);
+                    return success();
+                }
+                if (this.IsValidPosition(undefined,(this.targetPos?.Y ?? 0)+i,this.Shapes[newRot])) {
+                    this._y = this.targetPos?.Y ?? 0;
+                    this.Rotation = newRot;
+                    this._y = (this.targetPos?.Y ?? 0)+i;
+                    this.targetPos =  new Point(this.targetPos?.X ?? 0,this._y);
+                    return success();
                 }
             }
+            SFX.negative.play();
             return false;
         }
         this.Rotation = newRot;
-        this.Draw();
-        return true;
+        return success();
     }
     static Draw(block:BlockInstance,canvas?:Canvas2D,x?:number,y?:number,drawColor?:boolean,outline?:boolean,width?:number,height?:number) {
         if (!block.isFake) return;
@@ -1474,10 +1405,12 @@ class BlockInstance extends Block {
         this.stamping = false;
     }
     async InstantDrop() {
+        Game.LockMovement = true;
         const y = this.LowestValidY-(this.targetPos?.Y ?? 0);
-        Game.Score += y*Enum.BaseScores.Hard;
         await this.Move(0,y,true);
+        SFX.harddrop.play();
         await this.Stamp();
+        Game.Score += y*Enum.BaseScores.Hard;
     }
     private get LowestValidY() : number {
         let y = this.targetPos?.Y ?? 0;
@@ -1515,11 +1448,6 @@ class BlockInstance extends Block {
         return new Block(this.Shapes,this.Data,this.Symbol);
     }
 }
-
-const Levels:InfiniteArray<Level> = new InfiniteArray([
-    new Level("1",1.0,()=>10,Enum.ModeOperation.Set),
-    new Level("2..",1.15,undefined,(x:number,y:number)=>Math.max(((y+2)^Game.LevelNumber)/100,Game.MaxSpeed))
-]);
 
 const Blocks:Record<string,Block> = {
     "I": new Block(
@@ -1699,27 +1627,7 @@ const Blocks:Record<string,Block> = {
     )
 }
 
-class ModEngine {
-    private static ModList:Record<string,Mod> = {};
-    static LoadMod(mod:Mod) : boolean {
-        if (this.ModList[mod.Name] !== undefined) return false;
-        this.ModList[mod.Name] = mod;
-        return true;
-    }
-}
-
-class Mod {
-    constructor(modData:Record<string,any>) {
-        this.Name = modData.Name;
-        this.Description = modData.Description ?? "";
-        this.Blocks = modData["Custom Blocks"];
-    };
-    readonly Name:string;
-    readonly Description:string;
-    readonly Blocks?:Record<number, Block>;
-}
-
-window.addEventListener("click",loadSFX)
+window.addEventListener("click",loadSFX);
 
 function getRangeStep(range:HTMLInputElement) {
     const int:boolean = range.classList.contains("int");
@@ -1743,13 +1651,13 @@ const keyThreads:Record<string,number|undefined> = {};
 var pausedFromFocusLoss:boolean;
 
 window.addEventListener("focus",()=>{
-    if (pausedFromFocusLoss && Game.Paused) Game.TogglePause(false);
+    if (pausedFromFocusLoss && Game.Paused && Game.AutoPause) Game.TogglePause(false);
     pausedFromFocusLoss = false;
 });
 window.addEventListener("blur",()=>{
     for (const k of Object.keys(heldKeys))
         heldKeys[k] = false;
-    if (!Game.Paused) {
+    if (!Game.Paused && Game.AutoPause) {
         Game.TogglePause(true);
         pausedFromFocusLoss = true;
     }
@@ -1759,7 +1667,7 @@ async function handleKeypress(event:KeyboardEvent) {
     let eventKey = event.key;
     if (eventKey === "Tab" && heldKeys.Shift)
         eventKey = "ShiftTab";
-    if (event.defaultPrevented || !__sfx_loaded) return;
+    if (event.defaultPrevented || !SFX) return;
     if (!Game.Running || Game.Paused) {
         if (document.activeElement?.classList.contains("keybind") && document.activeElement.textContent === "...")
             return event.preventDefault();
@@ -1778,7 +1686,8 @@ async function handleKeypress(event:KeyboardEvent) {
             case "ShiftTab":
             case "ArrowUp":
                 PauseMenuSel = Utils.OverflowOperate(PauseMenuSel,-1,0,PauseBtns.length-1);
-                return focusButton();
+                focusButton();
+                return event.preventDefault();
             case "ArrowRight":
                 if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement) {
                     if ((PauseBtns[PauseMenuSel] as HTMLInputElement).type !== "range") {
@@ -1793,7 +1702,8 @@ async function handleKeypress(event:KeyboardEvent) {
             case "Tab":
             case "ArrowDown":
                 PauseMenuSel = Utils.OverflowOperate(PauseMenuSel,1,0,PauseBtns.length-1);
-                return focusButton();
+                focusButton();
+                return event.preventDefault();
             case "z":
             case "c":
             case " ":
@@ -1818,7 +1728,7 @@ async function handleKeypress(event:KeyboardEvent) {
             default: return;
         }
     }
-    if (Game.Paused && event.key !== "Escape") return;
+    if (Game.Paused && event.key !== "Escape" || Game.LockMovement) return;
     switch (event.key) {
         case Game.KeyBinds.Left:
             Game.CurrentBlock?.Move(-1, 0);
@@ -2008,13 +1918,14 @@ const keyTranslationMap:Record<string,string> = {
     "]": "",
     "<": "",
     ">": "",
+    CapsLock: "",
     "^": "",
     ":": "",
     ",": "",
     Control: "",
     Delete: "",
     End: "",
-    Enter: "",
+    Enter: "",
     "=": "",
     Escape: "",
     "!": "",
@@ -2052,11 +1963,11 @@ const keyTranslationMap:Record<string,string> = {
     mac_Option: ""
 }
 for (const [key,symbol] of Object.entries(keyTranslationMap)) {
-    if (key.length === 1 && key.toLowerCase() !== key) {
-        keyTranslationMap[key.toUpperCase()] = `${keyTranslationMap.Shift}${symbol}`
+    if (key.length === 1 && key.toUpperCase() !== key) {
+        keyTranslationMap[key.toUpperCase()] = `${keyTranslationMap.Shift}﹢${symbol}`
         continue;
     }
-    if (isMac && key === "Meta" || key === "Alt") {
+    if (isMac && (key === "Meta" || key === "Alt")) {
         if (key === "Meta")
             keyTranslationMap[key] = keyTranslationMap.mac_Command;
         if (key === "Alt")
@@ -2064,27 +1975,41 @@ for (const [key,symbol] of Object.entries(keyTranslationMap)) {
         continue;
     }
 }
-function translateKey(k:string,reverse:boolean=false) : string {
+function translateKey(k:string) : string {
     if (keyTranslationMap[k]) return keyTranslationMap[k];
     return k;
 }
+function resetKeybindStyle(el:HTMLButtonElement) {
+    if (Object.values(keyTranslationMap).indexOf(el.textContent) !== -1)
+        el.classList.remove("active");
+}
 (document.querySelectorAll("button.keybind") as NodeListOf<HTMLButtonElement>).forEach(el=>{
     Game.KeyBinds[el.dataset.bind ?? ""] = el.dataset.key ?? "";
+    let ignoreInput:boolean = false;
     function click(event:KeyboardEvent) {
+        if (ignoreInput) {
+            ignoreInput = false;
+            return;
+        }
         if (event.key === "Escape") {
             el.textContent = translateKey(el.dataset.key ?? "");
+            resetKeybindStyle(el);
             return;
         }
         el.dataset.key = event.key;
         event.preventDefault();
-        document.removeEventListener("keydown",click);
+        document.removeEventListener("keyup",click);
         el.textContent = translateKey(event.key);
         Game.KeyBinds[el.dataset.bind ?? ""] = el.dataset.key ?? "";
+        resetKeybindStyle(el);
     }
     el.textContent = translateKey(el.dataset.key ?? "");
-    el.addEventListener("click",()=>{
+    resetKeybindStyle(el);
+    el.addEventListener("click",event=>{
+        el.classList.add("active");
         el.textContent = "..."
-        document.addEventListener("keydown",click);
+        ignoreInput = !event.isTrusted;
+        document.addEventListener("keyup",click);
     });
 });
 
@@ -2135,6 +2060,10 @@ async function genReadme(id:string,path:string) {
     readme = await marked.parse(readme);
     const rmt = document.getElementById(`${id}-readme`);
     if (rmt) rmt.innerHTML = readme;
+    (rmt?.querySelectorAll("a,h1,h2,h3,tr,.keyboard-selectable") as NodeListOf<HTMLElement>).forEach(el=>{
+        el.classList.add("keyboard-selectable");
+        if (el.tabIndex === -1) el.tabIndex = 0;
+    })
 }
 
 const readmePages = { about:"./README.md", help:"./HELP.md" };

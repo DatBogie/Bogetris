@@ -103,9 +103,13 @@ body {
 }
 .left-stack {
     right: 100%;
+    align-items: end;
+    padding-right: 24px;
 }
 .right-stack {
     left: 100%;
+    align-items: start;
+    padding-left: 24px;
 }
 
 .right-canvas {
@@ -220,6 +224,7 @@ button:active {
 .modal-content {
     overflow: scroll;
     align-items: start;
+    backdrop-filter: blur(100px);
 }
 
 ul.layout {
@@ -483,18 +488,15 @@ a {
     transform: translateY(0px);
 }
 
-.icon {
+.icon:not(.active) {
     font-size: 300%;
     text-rendering: optimizeLegibility;
     font-weight: normal;
 }
 
-button.keybind {
+button.keybind:not(.active) {
     font-family: var(--font);
-    font-size: 300%;
     padding: 0;
     padding-left: 5%;
     padding-right: 5%;
-    font-weight: normal;
-    text-rendering: optimizeLegibility;
 }
