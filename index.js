@@ -16,22 +16,24 @@ class Sound {
         if (__sfx_is_loaded)
             this.sound = sfxr.toAudio(json);
         this.json = json;
-        this.vol = 1;
-        this.gain = json.sound_vol;
+        this.sound_vol = json.sound_vol;
     }
     sound;
     json;
-    vol;
-    gain;
+    vol = 1;
+    sound_vol;
+    get sfxrAudio() {
+        return sfxr.toAudio(this.json);
+    }
     play() {
-        if (!this.sound)
-            if (!__sfx_is_loaded)
-                return;
-            else
-                this.sound = sfxr.toAudio(this.json);
-        this.volume = Game.AudioVol / 100;
-        if (this.vol <= 0)
+        if (!__sfx_is_loaded)
             return;
+        const vol = Game.AudioVol / 100;
+        if (vol <= 0)
+            return;
+        this.volume = vol;
+        if (!this.sound)
+            this.sound = this.sfxrAudio;
         this.sound.play();
     }
     get volume() {
@@ -41,8 +43,8 @@ class Sound {
         if (this.vol === vol)
             return;
         this.vol = vol;
-        this.json.sound_vol = this.gain * vol;
-        this.sound = sfxr.toAudio(this.json);
+        this.json.sound_vol = this.sound_vol * vol;
+        this.sound = this.sfxrAudio;
     }
 }
 var SFX = {
@@ -57,28 +59,24 @@ var SFX = {
     blockMove: new Sound(__sfx_block_move),
     hold: new Sound(__sfx_hold)
 };
+var __sfx_is_loaded = false;
 var clickWar = document.getElementById("click-req");
-clickWar?.addEventListener("click", () => {
+clickWar.addEventListener("click", () => {
     updateSelectionButtons();
     clickWar.style.pointerEvents = "none !important";
     clickWar.style.opacity = "0";
     setTimeout(() => {
-        clickWar?.remove();
+        clickWar.remove();
         clickWar = undefined;
     }, 600);
 });
-var __sfx_is_loaded = false;
-var PauseMenuSel = 0;
-var PauseBtns = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
-function bounceAnim(el) {
-    if (!Game.Anims)
-        return;
-    el.animate([{ scale: .925 }, { scale: 1 }], { easing: "ease", duration: 100 });
-}
 function loadSFX() {
     __sfx_is_loaded = true;
     window.removeEventListener("click", loadSFX);
 }
+window.addEventListener("click", loadSFX);
+var PauseMenuSel = 0;
+var PauseBtns = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
 function updateSelectionButtons(detailsSel) {
     const modal = document.querySelector(".modal.active");
     const btns = Array.from(modal ? modal.querySelectorAll(".modal-content .keyboard-selectable") : document.querySelectorAll("#pause-btns > .keyboard-selectable"));
@@ -98,9 +96,13 @@ function updateSelectionButtons(detailsSel) {
 function focusButton() {
     setTimeout(() => {
         PauseBtns[PauseMenuSel]?.focus();
-        if (__sfx_is_loaded)
-            SFX.click.play();
+        SFX.click.play();
     }, 1);
+}
+function bounceAnim(el) {
+    if (!Game.Anims)
+        return;
+    el.animate([{ scale: .925 }, { scale: 1 }], { easing: "ease", duration: 100 });
 }
 function getAttr(instance, attr) {
     return instance[attr];
@@ -149,7 +151,7 @@ class InfiniteLevelArray extends InfiniteArray {
     get(index) {
         if (new NumberRange(0, this.length - 1).inRange(index))
             return this.data[index];
-        return this.data[this.length - 1].clone(index);
+        return this.data[this.length - 1].Clone(index);
     }
 }
 class BagArray extends ArrayWrapper {
@@ -167,17 +169,43 @@ class BagArray extends ArrayWrapper {
         return this.data.splice(Utils.RandomRange(0, this.length - 1), 1)[0];
     }
 }
+class FeedtapeArray {
+    constructor(length) {
+        this.data = new Array(length);
+        this.data.fill(undefined);
+    }
+    data;
+    get length() {
+        return this.data.length;
+    }
+    feed() {
+        for (let i = 0; i < this.length - 1; i++)
+            this.data[i] = this.data[i + 1];
+    }
+    push(value) {
+        this.feed();
+        this.data[this.length - 1] = value;
+    }
+    get(index) {
+        return this.data[index];
+    }
+    set(index, value) {
+        this.data[index] = value;
+    }
+    fill(value, startIndex = 0, endIndex = this.length) {
+        for (let i = startIndex; i < endIndex; i++)
+            this.data[i] = typeof value === "function" ? value() : value;
+    }
+    toString() {
+        return this.data.toString();
+    }
+}
 var Enum;
 (function (Enum) {
     class BaseScores {
         static Soft = 1;
         static Hard = 2;
-        static Clears = new InfiniteArray([
-            100,
-            300,
-            500,
-            800
-        ]);
+        static Clears = new InfiniteArray([100, 300, 500, 800]);
     }
     Enum.BaseScores = BaseScores;
     class ModeOperation {
@@ -192,24 +220,6 @@ var Enum;
         GridMode[GridMode["Grid"] = 1] = "Grid";
         GridMode[GridMode["Both"] = 2] = "Both";
     })(GridMode = Enum.GridMode || (Enum.GridMode = {}));
-    class CustomBlockShape {
-        static get length() {
-            let i = 0;
-            for (const _ of Object.keys(Blocks))
-                i++;
-            return i;
-        }
-        constructor(symbol, block) {
-            this.Symbol = symbol;
-            this.Block = block;
-            this.index = CustomBlockShape.length;
-            Blocks[this.index] = block;
-        }
-        Symbol;
-        Block;
-        index;
-    }
-    Enum.CustomBlockShape = CustomBlockShape;
     let Operation;
     (function (Operation) {
         Operation[Operation["Addition"] = 0] = "Addition";
@@ -222,42 +232,6 @@ var Enum;
         return ops[op] ?? Operation.Addition;
     }
     Enum.OperationFromString = OperationFromString;
-    let ThemeStyle;
-    (function (ThemeStyle) {
-        ThemeStyle[ThemeStyle["Dark"] = 0] = "Dark";
-        ThemeStyle[ThemeStyle["Light"] = 1] = "Light";
-    })(ThemeStyle = Enum.ThemeStyle || (Enum.ThemeStyle = {}));
-    let UIThemeKey;
-    (function (UIThemeKey) {
-        UIThemeKey[UIThemeKey["olc"] = 0] = "olc";
-        UIThemeKey[UIThemeKey["rosewater"] = 1] = "rosewater";
-        UIThemeKey[UIThemeKey["flamingo"] = 2] = "flamingo";
-        UIThemeKey[UIThemeKey["pink"] = 3] = "pink";
-        UIThemeKey[UIThemeKey["mauve"] = 4] = "mauve";
-        UIThemeKey[UIThemeKey["red"] = 5] = "red";
-        UIThemeKey[UIThemeKey["maroon"] = 6] = "maroon";
-        UIThemeKey[UIThemeKey["peach"] = 7] = "peach";
-        UIThemeKey[UIThemeKey["yellow"] = 8] = "yellow";
-        UIThemeKey[UIThemeKey["green"] = 9] = "green";
-        UIThemeKey[UIThemeKey["teal"] = 10] = "teal";
-        UIThemeKey[UIThemeKey["sky"] = 11] = "sky";
-        UIThemeKey[UIThemeKey["sapphire"] = 12] = "sapphire";
-        UIThemeKey[UIThemeKey["blue"] = 13] = "blue";
-        UIThemeKey[UIThemeKey["lavender"] = 14] = "lavender";
-        UIThemeKey[UIThemeKey["text"] = 15] = "text";
-        UIThemeKey[UIThemeKey["subtext1"] = 16] = "subtext1";
-        UIThemeKey[UIThemeKey["subtext0"] = 17] = "subtext0";
-        UIThemeKey[UIThemeKey["overlay2"] = 18] = "overlay2";
-        UIThemeKey[UIThemeKey["overlay1"] = 19] = "overlay1";
-        UIThemeKey[UIThemeKey["overlay0"] = 20] = "overlay0";
-        UIThemeKey[UIThemeKey["surface2"] = 21] = "surface2";
-        UIThemeKey[UIThemeKey["surface1"] = 22] = "surface1";
-        UIThemeKey[UIThemeKey["surface0"] = 23] = "surface0";
-        UIThemeKey[UIThemeKey["base"] = 24] = "base";
-        UIThemeKey[UIThemeKey["mantle"] = 25] = "mantle";
-        UIThemeKey[UIThemeKey["crust"] = 26] = "crust";
-        UIThemeKey[UIThemeKey["accent"] = 27] = "accent";
-    })(UIThemeKey = Enum.UIThemeKey || (Enum.UIThemeKey = {}));
 })(Enum || (Enum = {}));
 class Utils {
     static OverflowOperate(n0, n1, underflow, overflow, operation = Enum.Operation.Addition) {
@@ -292,10 +266,20 @@ class Utils {
         }
         return x;
     }
-    static BiasedRound(x, dir = 0) {
-        if (x > Math.floor(x) && dir > 0)
-            return Math.floor(x) + 1;
-        return Math.floor(x);
+    static parseCSSNumber(n, retInt = false) {
+        if (n.endsWith("deg"))
+            return (!retInt ? parseFloat : parseInt)(n) / 360;
+        if (n.endsWith("turn"))
+            return (!retInt ? parseFloat : parseInt)(n) * 180;
+        if (n.endsWith("%"))
+            return (!retInt ? parseFloat : parseInt)(n) / 100;
+        return (!retInt ? parseFloat : parseInt)(n);
+    }
+    static clamp(x, min, max) {
+        return Math.min(Math.max(x, min), max);
+    }
+    static dummy(x) {
+        return x;
     }
 }
 class Canvas2D {
@@ -324,25 +308,11 @@ class Color {
     }
     static fromHex(hex) {
         hex = hex.replace("#", "");
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
+        const [r, g, b] = [parseInt(hex.substring(0, 2), 16), parseInt(hex.substring(2, 4), 16), parseInt(hex.substring(4, 6), 16)];
         let o = 255;
         if (hex.length > 6)
             o = parseInt(hex.substring(6, 8), 16);
         return new Color(r, g, b, o / 255);
-    }
-    static parseCSSNumber(n, retInt = false) {
-        if (n.endsWith("deg")) {
-            return (!retInt ? parseFloat : parseInt)(n) / 360;
-        }
-        if (n.endsWith("turn")) {
-            return (!retInt ? parseFloat : parseInt)(n) * 180;
-        }
-        if (n.endsWith("%")) {
-            return (!retInt ? parseFloat : parseInt)(n) / 100;
-        }
-        return (!retInt ? parseFloat : parseInt)(n);
     }
     static fromHSLA(h, s, l, a) {
         s /= 100;
@@ -378,16 +348,13 @@ class Color {
                 data = s.substring(5, s.length - 1).split(",", 4);
             else
                 data = s.substring(4, s.length - 1).split(",", 3);
-            r = parseInt(data[0]);
-            g = parseInt(data[1]);
-            b = parseInt(data[2]);
+            [r, g, b] = [r = parseInt(data[0]), g = parseInt(data[1]), b = parseInt(data[2])];
             if (data.length > 3)
                 a = parseFloat(data[3]);
             return new Color(r, g, b, a);
         }
-        if (s.startsWith("#")) {
+        if (s.startsWith("#"))
             return Color.fromHex(s);
-        }
         if (s.startsWith("hsl")) {
             let h, _s, l, a;
             let data;
@@ -395,9 +362,7 @@ class Color {
                 data = s.substring(5, s.length - 1).split(",", 4);
             else
                 data = s.substring(4, s.length - 1).split(",", 3);
-            h = Color.parseCSSNumber(data[0], true);
-            _s = Color.parseCSSNumber(data[1], true);
-            l = Color.parseCSSNumber(data[2], true);
+            [h, _s, l] = [Utils.parseCSSNumber(data[0], true), Utils.parseCSSNumber(data[1], true), Utils.parseCSSNumber(data[2], true)];
             return Color.fromHSLA(h, _s, l, a);
         }
     }
@@ -418,44 +383,6 @@ class Color {
     }
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-class FeedtapeArray {
-    constructor(length) {
-        this.data = new Array(length);
-        this.data.fill(undefined);
-        Object.seal(this.data);
-    }
-    data;
-    get length() {
-        return this.data.length;
-    }
-    feed() {
-        for (let i = 0; i < this.length - 1; i++)
-            this.data[i] = this.data[i + 1];
-    }
-    push(value) {
-        this.feed();
-        this.data[this.length - 1] = value;
-    }
-    get(index) {
-        return this.data[index];
-    }
-    set(index, value) {
-        this.data[index] = value;
-    }
-    fill(value, startIndex = 0, endIndex = this.length) {
-        for (let i = startIndex; i < endIndex; i++)
-            this.data[i] = typeof value === "function" ? value() : value;
-    }
-    toString() {
-        let s = "";
-        for (const [i, val] of this.data.entries())
-            if (i !== 0)
-                s += `, ${val}`;
-            else
-                s += `${val}`;
-        return s;
-    }
-}
 const levelText = document.getElementById("level");
 const scoreText = document.getElementById("score");
 const lineClearRelText = document.getElementById("line-clear-rel");
@@ -500,10 +427,9 @@ class Game {
     }
     static score = 0;
     static set Score(score) {
-        Game.score = Math.round(score * Game.Level.ScoreMultiplier());
-        if (Game.linesCleared >= Game.Level.ClearGate) {
+        Game.score = Math.round(score * Game.Level.ScoreMultiplier);
+        if (Game.linesCleared >= Game.NextLevel.ClearGate)
             Game.Level = Game.LevelIndex + 1;
-        }
         Game.drawScoreText();
         if (Game.score > Game.highScore) {
             highScoreText.textContent = Game.score.toString();
@@ -543,16 +469,6 @@ class Game {
     static Anims = true;
     static Physics = false;
     static KeyBinds = {};
-    static filterActive(dict, callback, invert = false) {
-        const ret = {};
-        for (const [k, theme] of Object.entries(dict))
-            if ((theme.Enabled && !invert) || (!theme.Enabled && invert)) {
-                ret[k] = theme;
-                if (callback)
-                    callback(k, theme);
-            }
-        return ret;
-    }
     static get PixelSize() {
         return Math.min(Game.GameCanvas.Canvas.width / Game.Width, Game.GameCanvas.Canvas.height / Game.Height);
     }
@@ -596,7 +512,6 @@ class Game {
     }
     static _running;
     static _data;
-    static _time;
     static _thread_id;
     static _lock_thread_id;
     static GridDrawn = false;
@@ -645,9 +560,6 @@ class Game {
         }
     }
     static ReloadPage = () => window.location.reload();
-    static NewGame() {
-        Game.Reset();
-    }
     static rgt() {
         Game._thread_id = setTimeout(Game.GameTick, Game.Speed);
     }
@@ -752,27 +664,6 @@ class Game {
             gameCanvas.Context.stroke();
         }
     }
-    static EraseShape(self, x, y, shape) {
-        if (Game !== self && self !== Game.CurrentBlock)
-            return;
-        if (self instanceof BlockInstance) {
-            x ??= self.X;
-            y ??= self.Y;
-            shape ??= self.CurrentShape;
-        }
-        else {
-            x ??= 0;
-            y ??= 0;
-            shape ??= [];
-        }
-        for (const [oY, row] of shape.entries()) {
-            for (const [oX, col] of row.entries()) {
-                if (col === 0)
-                    continue;
-                Game._data[y + oY][x + oX] = 0;
-            }
-        }
-    }
     static WriteShape(self, x, y, shape) {
         if (Game !== self && self !== Game.CurrentBlock)
             return;
@@ -836,7 +727,7 @@ class Game {
             if (!blockShape)
                 continue;
             const block = new BlockInstance(blockShape).Clone();
-            let [lY, hY] = [block.LowestPoint.Y, block.HighestPoint.Y];
+            let hY = block.HighestPoint.Y;
             const prevBlock = Game.blockFeed.get(i - 1) && positions[i - 1] ? new BlockInstance(Game.blockFeed.get(i - 1)) : undefined;
             const [pX, pY] = [Game.Width / 2 - block.CurrentShape[0].length / 2, (positions[i - 1]?.Y ?? 5) + (prevBlock?.LowestPoint.Y ?? -1) + 1 - hY + 1];
             positions[i] = new Point(pX, pY);
@@ -888,7 +779,6 @@ class Game {
                 await sleep(Game.FixedAnimClearTime ? Game.AnimClearTime / Game.Width : Game.AnimClearTime);
             }
         }
-        return;
     }
     static async handleClears() {
         var cFlag = false;
@@ -971,17 +861,9 @@ class Game {
             document.getElementById("pause-resume").classList.remove("hidden");
             document.getElementById("pause-restart").innerText = "Restart";
         }
-        if (Game.Paused) {
-            PauseMenuSel = 0;
+        if (Game.Paused)
             updateSelectionButtons();
-        }
     }
-}
-function clamp(x, min, max) {
-    return Math.min(Math.max(x, min), max);
-}
-function dummy(x) {
-    return x;
 }
 class Signal {
     subs = [];
@@ -1149,8 +1031,7 @@ function handleSettings() {
             label.textContent = getAttr(Game, k);
         if (el instanceof HTMLInputElement) {
             if (el.type === "number" || el.type === "range") {
-                const min = parseFloat(el.min ?? "0");
-                const max = parseFloat(el.max ?? "100");
+                const [min, max] = [parseFloat(el.min ?? "0"), parseFloat(el.max ?? "100")];
                 const defaultVal = getAttr(Game, k);
                 if (el.classList.contains("percent"))
                     el.valueAsNumber = getAttr(Game, k) * max;
@@ -1162,7 +1043,7 @@ function handleSettings() {
                         el.valueAsNumber = SettingsBuffer.get(k)?.value ?? (getAttr(Game, k) ?? defaultVal) * (el.classList.contains("percent") ? max : 1);
                         return;
                     }
-                    const val = (el.classList.contains("int") ? Math.trunc : dummy)(clamp(el.valueAsNumber, min, max));
+                    const val = (el.classList.contains("int") ? Math.trunc : Utils.dummy)(Utils.clamp(el.valueAsNumber, min, max));
                     UpdateSettingsBuffer(k, { value: (el.classList.contains("percent") ? val / max : val), funcs: funcs, el: el });
                     el.valueAsNumber = val;
                 });
@@ -1231,7 +1112,7 @@ class NumberRange {
 }
 const Levels = new InfiniteLevelArray([]);
 class Level {
-    constructor(name, speed, clearGate = () => 10 * (this.LevelNumber), speedMode = Enum.ModeOperation.Multiply, speedRange = NumberRange.infinite, scoreMultiplier) {
+    constructor(name, speed, clearGate = () => 10 * (this.LevelNumber - 1), speedMode = Enum.ModeOperation.Multiply, speedRange = NumberRange.infinite, scoreMultiplier) {
         this.Name = name;
         this.speed = speed;
         this.clearGate = clearGate;
@@ -1240,7 +1121,7 @@ class Level {
         if (scoreMultiplier)
             this.scoreMultiplier = scoreMultiplier;
     }
-    clone(index) {
+    Clone(index) {
         const lvl = new Level(this.Name, this.Speed, this.clearGate, this.SpeedMode, this.SpeedRange, this.scoreMultiplier);
         lvl.levelIndex = index;
         return lvl;
@@ -1258,13 +1139,13 @@ class Level {
     scoreMultiplier = function (index) {
         return 1 + (index / 100);
     };
-    ScoreMultiplier() {
+    get ScoreMultiplier() {
         return this.scoreMultiplier(this.LevelNumber - 1);
     }
     SpeedMode;
     SpeedRange;
     get Speed() {
-        return clamp(this.SpeedMode(Game.LevelSpeed, this.speed), this.SpeedRange.Min, this.SpeedRange.Max);
+        return Utils.clamp(this.SpeedMode(Game.LevelSpeed, this.speed), this.SpeedRange.Min, this.SpeedRange.Max);
     }
     get ClearGate() {
         return this.clearGate();
@@ -1701,7 +1582,6 @@ const Blocks = {
         ]
     ], new BlockData("#f5a97f"), "L")
 };
-window.addEventListener("click", loadSFX);
 function getRangeStep(range) {
     const int = range.classList.contains("int");
     let step = ((int ? parseInt : parseFloat)(range.step)) || 1;
@@ -1711,11 +1591,11 @@ function getRangeStep(range) {
         step = parseFloat(range.dataset.shiftStep ?? "") || (step * 5);
     else if (heldKeys.Control || heldKeys.Meta)
         step = (Math.abs(parseFloat(range.max)) + Math.abs(parseFloat(range.min))) / 2;
-    return (int ? Math.round : dummy)(step);
+    return (int ? Math.round : Utils.dummy)(step);
 }
 function stepRange(range, dir = 1) {
     const int = range.classList.contains("int");
-    return clamp((int ? parseInt : parseFloat)(range.value) + (getRangeStep(range) * dir), (int ? parseInt : parseFloat)(range.min), (int ? parseInt : parseFloat)(range.max));
+    return Utils.clamp((int ? parseInt : parseFloat)(range.value) + (getRangeStep(range) * dir), (int ? parseInt : parseFloat)(range.min), (int ? parseInt : parseFloat)(range.max));
 }
 const heldKeys = {};
 const keyThreads = {};
@@ -2127,7 +2007,7 @@ document.addEventListener("click", event => {
 });
 LoadSettings();
 Game.DrawGrid();
-Game.NewGame();
+Game.Reset();
 async function genReadme(id, path) {
     let readme = await fetch(path);
     readme = await readme.text();
