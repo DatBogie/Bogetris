@@ -1,16 +1,11 @@
-# Tetris Web
+# Bogetris
 
-APCSP 2026 Create Task Project
-
-## Modding Links
-
-- See the [Wiki](about:blank)
-- See the [Example Mod](./test-mod.tetrismod.jsonc)
-- [Open the Toolkit](./Modding/index.html)
+APCSP 2026 Create Task Project  
+*Gameplay heavily inspired by The Tetris Company's [Tetris](https://tetris.com)®*
 
 ## License
 
-This project is licensed under the [CC BY-SA 4.0 License](https://raw.githubusercontent.com/DatBogie/Tetris_Web/refs/heads/main/LICENSE).
+This project is licensed under the [CC BY-SA 4.0 License](https://raw.githubusercontent.com/DatBogie/Bogetris/refs/heads/main/LICENSE).
 
 ## Attributions
 
@@ -20,6 +15,7 @@ This project is licensed under the [CC BY-SA 4.0 License](https://raw.githubuser
 | Catppuccin Latte                                                                                                     | [MIT](https://raw.githubusercontent.com/catppuccin/catppuccin/refs/heads/main/LICENSE)                                                | [Catppuccin](https://github.com/catppuccin)                                                                                                 | [Website](https://catppuccin.com/palette)                | Modded Theme            | Color Palette         |
 | `color-conversion-algorithms.js`                                                                                     | [CC BY-SA 4.0](https://en.wikipedia.org/wiki/Wikipedia:Text_of_the_Creative_Commons_Attribution-ShareAlike_4.0_International_License) | [mjackson](https://github.com/mjackson)                                                                                                     | [GitHub Gists](https://gist.github.com/mjackson/5311256) | Method of `Color` class | Convert HSL to RGB    |
 | Best Answer for 'What is the JavaScript version of sleep()?' by [user984003](https://stackoverflow.com/users/984003) | [CC BY-SA 4.0](https://stackoverflow.com/help/licensing)                                                                              | [Dan Dascalescu](https://stackoverflow.com/users/1269037/dan-dascalescu), modified by [Stack Overflow](https://stackoverflow.com) Community | [Stack Overflow](https://stackoverflow.com/a/39914235)   | `sleep` function        | Delay execution by ms |
+| Kenney Input Prompts                                                                                                 | [Creative Commons CC0 Universal](https://creativecommons.org/publicdomain/zero/1.0/legalcode.en)                                      | [@KenneyNL](https://x.com/KenneyNL)                                                                                                         | [Kenney](https://kenney.nl/assets/input-prompts)         | Icons in help popup     | Keyboard Icons        |
 
 For now, see [comments](./index.ts).
 

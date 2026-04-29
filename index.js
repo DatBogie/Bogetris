@@ -1,55 +1,82 @@
 import { sfxr } from "jsfxr";
-import click from "./Sounds/click.json" with { type: 'json' };
 import { Tween, Easing } from "@tweenjs/tween.js";
 import { marked } from "marked";
-const clickWar = document.getElementById("click-req");
-clickWar?.addEventListener("click", () => {
-    updateSelectionButtons();
-    clickWar.style.pointerEvents = "none !important";
-    clickWar.style.opacity = "0";
-    setTimeout(() => {
-        clickWar?.remove();
-    }, 600);
-});
+import __sfx_click from "./Sounds/click.json" with { type: 'json' };
+import __sfx_clear from "./Sounds/clear.json" with { type: 'json' };
+import __sfx_gameover from "./Sounds/game-over.json" with { type: 'json' };
+import __sfx_levelup from "./Sounds/level-up.json" with { type: 'json' };
+import __sfx_harddrop from "./Sounds/hard-drop.json" with { type: 'json' };
+import __sfx_newbest from "./Sounds/new-best.json" with { type: 'json' };
+import __sfx_block_rotate from "./Sounds/block-rotate.json" with { type: 'json' };
+import __sfx_negative from "./Sounds/negative.json" with { type: 'json' };
+import __sfx_block_move from "./Sounds/block-move.json" with { type: 'json' };
+import __sfx_hold from "./Sounds/hold.json" with { type: 'json' };
 class Sound {
     constructor(json) {
-        this.sound = sfxr.toAudio(json);
+        if (__sfx_is_loaded)
+            this.sound = sfxr.toAudio(json);
         this.json = json;
-        this.vol = 1;
-        this.gain = json.sound_vol;
+        this.sound_vol = json.sound_vol;
     }
     sound;
     json;
-    vol;
-    gain;
+    vol = 1;
+    sound_vol;
+    get sfxrAudio() {
+        return sfxr.toAudio(this.json);
+    }
     play() {
+        if (!__sfx_is_loaded)
+            return;
+        const vol = Game.AudioVol / 100;
+        if (vol <= 0)
+            return;
+        this.volume = vol;
+        if (!this.sound)
+            this.sound = this.sfxrAudio;
         this.sound.play();
     }
     get volume() {
         return this.vol;
     }
     set volume(vol) {
+        if (this.vol === vol)
+            return;
         this.vol = vol;
-        this.json.sound_vol = this.gain * vol;
-        this.sound = sfxr.toAudio(this.json);
+        this.json.sound_vol = this.sound_vol * vol;
+        this.sound = this.sfxrAudio;
     }
 }
-var clickSound;
-var PauseMenuSel = 0;
-var PauseBtns = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
-var __sfx_loaded = false;
+var SFX = {
+    click: new Sound(__sfx_click),
+    clear: new Sound(__sfx_clear),
+    gameover: new Sound(__sfx_gameover),
+    levelup: new Sound(__sfx_levelup),
+    harddrop: new Sound(__sfx_harddrop),
+    newbest: new Sound(__sfx_newbest),
+    blockrotate: new Sound(__sfx_block_rotate),
+    negative: new Sound(__sfx_negative),
+    blockMove: new Sound(__sfx_block_move),
+    hold: new Sound(__sfx_hold)
+};
+var __sfx_is_loaded = false;
+var clickWar = document.getElementById("click-req");
+clickWar.addEventListener("click", () => {
+    updateSelectionButtons();
+    clickWar.style.pointerEvents = "none !important";
+    clickWar.style.opacity = "0";
+    setTimeout(() => {
+        clickWar.remove();
+        clickWar = undefined;
+    }, 600);
+});
 function loadSFX() {
-    __sfx_loaded = true;
-    clickSound = new Sound(click);
+    __sfx_is_loaded = true;
     window.removeEventListener("click", loadSFX);
 }
-function playSound(sound) {
-    if (!__sfx_loaded)
-        return false;
-    sound.volume = Game.AudioVol / 100;
-    sound.play();
-    return true;
-}
+window.addEventListener("click", loadSFX);
+var PauseMenuSel = 0;
+var PauseBtns = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
 function updateSelectionButtons(detailsSel) {
     const modal = document.querySelector(".modal.active");
     const btns = Array.from(modal ? modal.querySelectorAll(".modal-content .keyboard-selectable") : document.querySelectorAll("#pause-btns > .keyboard-selectable"));
@@ -69,9 +96,13 @@ function updateSelectionButtons(detailsSel) {
 function focusButton() {
     setTimeout(() => {
         PauseBtns[PauseMenuSel]?.focus();
-        if (__sfx_loaded)
-            playSound(clickSound);
+        SFX.click.play();
     }, 1);
+}
+function bounceAnim(el) {
+    if (!Game.Anims)
+        return;
+    el.animate([{ scale: .925 }, { scale: 1 }], { easing: "ease", duration: 100 });
 }
 function getAttr(instance, attr) {
     return instance[attr];
@@ -88,7 +119,7 @@ class ArrayWrapper {
         return this.data.length;
     }
     push(...items) {
-        this.data.push(items);
+        this.data.push(...items);
     }
     pop() {
         return this.data.pop();
@@ -105,12 +136,65 @@ class ArrayWrapper {
     toString() {
         return this.data.toString();
     }
+    values() {
+        return Object.values(this.data);
+    }
 }
 class InfiniteArray extends ArrayWrapper {
     get(index) {
         if (new NumberRange(0, this.length - 1).inRange(index))
             return this.data[index];
         return this.data[this.length - 1];
+    }
+}
+class InfiniteLevelArray extends InfiniteArray {
+    get(index) {
+        if (new NumberRange(0, this.length - 1).inRange(index))
+            return this.data[index];
+        return this.data[this.length - 1].Clone(index);
+    }
+}
+class BagArray extends ArrayWrapper {
+    dataPool;
+    constructor(pool) {
+        super(pool);
+        this.dataPool = Array.from(pool);
+    }
+    refill() {
+        this.data = [...this.dataPool];
+    }
+    pick() {
+        if (this.length <= 0)
+            this.refill();
+        return this.data.splice(Utils.RandomRange(0, this.length - 1), 1)[0];
+    }
+}
+class FeedtapeArray {
+    constructor(length) {
+        this.data = new Array(length);
+        this.data.fill(undefined);
+    }
+    data;
+    get length() {
+        return this.data.length;
+    }
+    feed() {
+        for (let i = 0; i < this.length - 1; i++)
+            this.data[i] = this.data[i + 1];
+    }
+    push(value) {
+        this.feed();
+        this.data[this.length - 1] = value;
+    }
+    get(index) {
+        return this.data[index];
+    }
+    set(index, value) {
+        this.data[index] = value;
+    }
+    fill(value, startIndex = 0, endIndex = this.length) {
+        for (let i = startIndex; i < endIndex; i++)
+            this.data[i] = typeof value === "function" ? value() : value;
     }
     toString() {
         return this.data.toString();
@@ -121,12 +205,7 @@ var Enum;
     class BaseScores {
         static Soft = 1;
         static Hard = 2;
-        static Clears = new InfiniteArray([
-            100,
-            300,
-            500,
-            800
-        ]);
+        static Clears = new InfiniteArray([100, 300, 500, 800]);
     }
     Enum.BaseScores = BaseScores;
     class ModeOperation {
@@ -141,24 +220,6 @@ var Enum;
         GridMode[GridMode["Grid"] = 1] = "Grid";
         GridMode[GridMode["Both"] = 2] = "Both";
     })(GridMode = Enum.GridMode || (Enum.GridMode = {}));
-    class CustomBlockShape {
-        static get length() {
-            let i = 0;
-            for (const _ of Object.keys(Blocks))
-                i++;
-            return i;
-        }
-        constructor(symbol, block) {
-            this.Symbol = symbol;
-            this.Block = block;
-            this.index = CustomBlockShape.length;
-            Blocks[this.index] = block;
-        }
-        Symbol;
-        Block;
-        index;
-    }
-    Enum.CustomBlockShape = CustomBlockShape;
     let Operation;
     (function (Operation) {
         Operation[Operation["Addition"] = 0] = "Addition";
@@ -171,42 +232,6 @@ var Enum;
         return ops[op] ?? Operation.Addition;
     }
     Enum.OperationFromString = OperationFromString;
-    let ThemeStyle;
-    (function (ThemeStyle) {
-        ThemeStyle[ThemeStyle["Dark"] = 0] = "Dark";
-        ThemeStyle[ThemeStyle["Light"] = 1] = "Light";
-    })(ThemeStyle = Enum.ThemeStyle || (Enum.ThemeStyle = {}));
-    let UIThemeKey;
-    (function (UIThemeKey) {
-        UIThemeKey[UIThemeKey["olc"] = 0] = "olc";
-        UIThemeKey[UIThemeKey["rosewater"] = 1] = "rosewater";
-        UIThemeKey[UIThemeKey["flamingo"] = 2] = "flamingo";
-        UIThemeKey[UIThemeKey["pink"] = 3] = "pink";
-        UIThemeKey[UIThemeKey["mauve"] = 4] = "mauve";
-        UIThemeKey[UIThemeKey["red"] = 5] = "red";
-        UIThemeKey[UIThemeKey["maroon"] = 6] = "maroon";
-        UIThemeKey[UIThemeKey["peach"] = 7] = "peach";
-        UIThemeKey[UIThemeKey["yellow"] = 8] = "yellow";
-        UIThemeKey[UIThemeKey["green"] = 9] = "green";
-        UIThemeKey[UIThemeKey["teal"] = 10] = "teal";
-        UIThemeKey[UIThemeKey["sky"] = 11] = "sky";
-        UIThemeKey[UIThemeKey["sapphire"] = 12] = "sapphire";
-        UIThemeKey[UIThemeKey["blue"] = 13] = "blue";
-        UIThemeKey[UIThemeKey["lavender"] = 14] = "lavender";
-        UIThemeKey[UIThemeKey["text"] = 15] = "text";
-        UIThemeKey[UIThemeKey["subtext1"] = 16] = "subtext1";
-        UIThemeKey[UIThemeKey["subtext0"] = 17] = "subtext0";
-        UIThemeKey[UIThemeKey["overlay2"] = 18] = "overlay2";
-        UIThemeKey[UIThemeKey["overlay1"] = 19] = "overlay1";
-        UIThemeKey[UIThemeKey["overlay0"] = 20] = "overlay0";
-        UIThemeKey[UIThemeKey["surface2"] = 21] = "surface2";
-        UIThemeKey[UIThemeKey["surface1"] = 22] = "surface1";
-        UIThemeKey[UIThemeKey["surface0"] = 23] = "surface0";
-        UIThemeKey[UIThemeKey["base"] = 24] = "base";
-        UIThemeKey[UIThemeKey["mantle"] = 25] = "mantle";
-        UIThemeKey[UIThemeKey["crust"] = 26] = "crust";
-        UIThemeKey[UIThemeKey["accent"] = 27] = "accent";
-    })(UIThemeKey = Enum.UIThemeKey || (Enum.UIThemeKey = {}));
 })(Enum || (Enum = {}));
 class Utils {
     static OverflowOperate(n0, n1, underflow, overflow, operation = Enum.Operation.Addition) {
@@ -241,10 +266,20 @@ class Utils {
         }
         return x;
     }
-    static BiasedRound(x, dir = 0) {
-        if (x > Math.floor(x) && dir > 0)
-            return Math.floor(x) + 1;
-        return Math.floor(x);
+    static parseCSSNumber(n, retInt = false) {
+        if (n.endsWith("deg"))
+            return (!retInt ? parseFloat : parseInt)(n) / 360;
+        if (n.endsWith("turn"))
+            return (!retInt ? parseFloat : parseInt)(n) * 180;
+        if (n.endsWith("%"))
+            return (!retInt ? parseFloat : parseInt)(n) / 100;
+        return (!retInt ? parseFloat : parseInt)(n);
+    }
+    static clamp(x, min, max) {
+        return Math.min(Math.max(x, min), max);
+    }
+    static dummy(x) {
+        return x;
     }
 }
 class Canvas2D {
@@ -266,83 +301,6 @@ class Point {
     X;
     Y;
 }
-class ColorPalette {
-    constructor(name, blocktheme, uitheme, style = Enum.ThemeStyle.Dark) {
-        this.Name = name;
-        this.BlockTheme = blocktheme;
-        this.Style = style;
-        if (uitheme?.Name === undefined || uitheme?.Style === undefined)
-            uitheme?.setPropertiesFromPalette(this);
-        this.UITheme = uitheme;
-    }
-    Name;
-    BlockTheme;
-    UITheme;
-    Style;
-    enabled = false;
-    get Enabled() {
-        return this.enabled;
-    }
-    set Enabled(enabled) {
-        if (enabled === this.enabled)
-            return;
-        this.enabled = enabled === undefined ? !this.enabled : enabled;
-        Game.ApplyColorPalettes();
-    }
-}
-class BlockTheme {
-    constructor(name, data) {
-        this.name = name;
-        this.Data = data;
-    }
-    name;
-    get Name() {
-        return this.Name;
-    }
-    Data;
-    enabled = false;
-    get Enabled() {
-        return this.enabled;
-    }
-    set Enabled(enabled) {
-        if (enabled === this.enabled)
-            return;
-        this.enabled = enabled === undefined ? !this.enabled : enabled;
-        Game.ApplyBlockThemes();
-    }
-}
-class UITheme {
-    constructor(name, data, style, css) {
-        this.name = name;
-        this.Data = data;
-        this.style = style;
-        this.CSS = css;
-    }
-    name;
-    get Name() {
-        return this.name;
-    }
-    Data;
-    CSS;
-    style;
-    get Style() {
-        return this.style;
-    }
-    setPropertiesFromPalette(palette) {
-        this.name ??= palette.Name;
-        this.style ??= palette.Style;
-    }
-    enabled = false;
-    get Enabled() {
-        return this.enabled;
-    }
-    set Enabled(enabled) {
-        if (enabled === this.enabled)
-            return;
-        this.enabled = enabled === undefined ? !this.enabled : enabled;
-        Game.ApplyUIThemes();
-    }
-}
 class Color {
     constructor(r, g, b, opacity = 1.0) {
         this._rgb = `rgba(${r},${g},${b}`;
@@ -350,29 +308,12 @@ class Color {
     }
     static fromHex(hex) {
         hex = hex.replace("#", "");
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
+        const [r, g, b] = [parseInt(hex.substring(0, 2), 16), parseInt(hex.substring(2, 4), 16), parseInt(hex.substring(4, 6), 16)];
         let o = 255;
         if (hex.length > 6)
             o = parseInt(hex.substring(6, 8), 16);
         return new Color(r, g, b, o / 255);
     }
-    static parseCSSNumber(n, retInt = false) {
-        if (n.endsWith("deg")) {
-            return (!retInt ? parseFloat : parseInt)(n) / 360;
-        }
-        if (n.endsWith("turn")) {
-            return (!retInt ? parseFloat : parseInt)(n) * 180;
-        }
-        if (n.endsWith("%")) {
-            return (!retInt ? parseFloat : parseInt)(n) / 100;
-        }
-        return (!retInt ? parseFloat : parseInt)(n);
-    }
-    /*
-     * Adapted version of https://gist.github.com/mjackson/5311256 > hslToRgb()
-     */
     static fromHSLA(h, s, l, a) {
         s /= 100;
         l /= 100;
@@ -407,16 +348,13 @@ class Color {
                 data = s.substring(5, s.length - 1).split(",", 4);
             else
                 data = s.substring(4, s.length - 1).split(",", 3);
-            r = parseInt(data[0]);
-            g = parseInt(data[1]);
-            b = parseInt(data[2]);
+            [r, g, b] = [r = parseInt(data[0]), g = parseInt(data[1]), b = parseInt(data[2])];
             if (data.length > 3)
                 a = parseFloat(data[3]);
             return new Color(r, g, b, a);
         }
-        if (s.startsWith("#")) {
+        if (s.startsWith("#"))
             return Color.fromHex(s);
-        }
         if (s.startsWith("hsl")) {
             let h, _s, l, a;
             let data;
@@ -424,9 +362,7 @@ class Color {
                 data = s.substring(5, s.length - 1).split(",", 4);
             else
                 data = s.substring(4, s.length - 1).split(",", 3);
-            h = Color.parseCSSNumber(data[0], true);
-            _s = Color.parseCSSNumber(data[1], true);
-            l = Color.parseCSSNumber(data[2], true);
+            [h, _s, l] = [Utils.parseCSSNumber(data[0], true), Utils.parseCSSNumber(data[1], true), Utils.parseCSSNumber(data[2], true)];
             return Color.fromHSLA(h, _s, l, a);
         }
     }
@@ -446,72 +382,70 @@ class Color {
         return this.RGBA;
     }
 }
-// Source - https://stackoverflow.com/a/39914235
-// Posted by Dan Dascalescu, modified by community. See post 'Timeline' for change history
-// Retrieved 2026-03-18, License - CC BY-SA 4.0
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-class FeedtapeArray {
-    constructor(length) {
-        this.data = new Array(length);
-        this.data.fill(undefined);
-        Object.seal(this.data);
-    }
-    data;
-    get length() {
-        return this.data.length;
-    }
-    feed() {
-        for (let i = 0; i < this.length - 1; i++)
-            this.data[i] = this.data[i + 1];
-    }
-    push(value) {
-        this.feed();
-        this.data[this.length - 1] = value;
-    }
-    get(index) {
-        return this.data[index];
-    }
-    set(index, value) {
-        this.data[index] = value;
-    }
-    fill(value, startIndex = 0, endIndex = this.length) {
-        for (let i = startIndex; i < endIndex; i++)
-            this.data[i] = typeof value === "function" ? value() : value;
-    }
-    toString() {
-        let s = "";
-        for (const [i, val] of this.data.entries())
-            if (i !== 0)
-                s += `, ${val}`;
-            else
-                s += `${val}`;
-        return s;
-    }
-}
 const levelText = document.getElementById("level");
 const scoreText = document.getElementById("score");
-const scoreGateText = document.getElementById("score-gate");
-const scoreGateRelText = document.getElementById("score-gate-rel");
-const scoreGatePercentText = document.getElementById("score-gate-percent");
+const lineClearRelText = document.getElementById("line-clear-rel");
+const highScoreText = document.getElementById("highscore");
+const newHighScoreBadge = document.getElementById("new-highscore");
+var maxMovement = 0;
 class Game {
-    static MaxSpeed = 4.0;
+    static AutoPause = true;
+    static LockMovement = false;
+    static ResetHighScore = false;
+    static ResetSettings = false;
+    static loadHighScore() {
+        let highscore = localStorage.getItem("HighScore");
+        Game.highScore = highscore ? parseInt(highscore) : 0;
+        highScoreText.textContent = Game.highScore.toString();
+    }
+    static drawScoreText() {
+        levelText.textContent = Game.LevelNumber.toString();
+        scoreText.textContent = Game.Score.toString();
+        lineClearRelText.textContent = (Game.Level.ClearGate - Game.linesCleared).toString() + " line(s)";
+        bounceAnim(document.getElementById("score-box"));
+    }
+    static linesCleared = 0;
+    static get LinesCleared() {
+        return Game.linesCleared;
+    }
+    static set LinesCleared(lines) {
+        Game.linesCleared = lines;
+        Game.drawScoreText();
+    }
     static BlockScale = 1.0;
     static LockDelay = 500;
+    static highScore;
+    static get HighScore() {
+        return Game.highScore;
+    }
+    static set HighScore(score) {
+        Game.highScore = Math.max(score, Game.highScore);
+        localStorage.setItem("HighScore", Game.highScore.toString());
+        highScoreText.textContent = Game.highScore.toString();
+        newHighScoreBadge.classList.remove("new-highscore");
+    }
     static score = 0;
     static set Score(score) {
-        Game.score = Math.round(score * Game.Level.ScoreMultiplier());
-        if (Game.score >= Game.ScoreGate) {
-            // Game.score-=Game.ScoreGate;
+        Game.score = Math.round(score * Game.Level.ScoreMultiplier);
+        if (Game.linesCleared >= Game.NextLevel.ClearGate)
             Game.Level = Game.LevelIndex + 1;
+        Game.drawScoreText();
+        if (Game.score > Game.highScore) {
+            highScoreText.textContent = Game.score.toString();
+            if (!newHighScoreBadge.classList.contains("new-highscore")) {
+                newHighScoreBadge.classList.add("new-highscore");
+                SFX.newbest.play();
+            }
         }
-        scoreText.textContent = Game.Score.toString();
-        scoreGateRelText.textContent = (Game.ScoreGate - Game.score).toString();
-        scoreGatePercentText.textContent = Math.trunc((Game.score / Game.ScoreGate) * 100).toString();
+        else {
+            highScoreText.textContent = (Game.HighScore ?? 0).toString();
+            newHighScoreBadge.classList.remove("new-highscore");
+        }
     }
     static get Score() {
         return Game.score;
     }
-    static ScoreGate;
     static KeyRepeatInterval = 150;
     static KeyRepeatDelay = 250;
     static MoveKeyRepeatInterval = 75;
@@ -535,83 +469,6 @@ class Game {
     static Anims = true;
     static Physics = false;
     static KeyBinds = {};
-    static BlockThemes = {
-        "Default": new BlockTheme(undefined, {
-            "I": Color.fromHex("#91d7e3"),
-            "J": Color.fromHex("#eed49f"),
-            "L": Color.fromHex("#c6a0f6"),
-            "O": Color.fromHex("#a6da95"),
-            "S": Color.fromHex("#ed8796"),
-            "T": Color.fromHex("#b7bdf8"),
-            "Z": Color.fromHex("#f5a97f")
-        })
-    };
-    static UIThemes = {
-        "Default": new UITheme(undefined, {
-            [Enum.UIThemeKey.olc]: Color.fromHSLA(0, 0, 100, .25),
-            [Enum.UIThemeKey.rosewater]: Color.fromHex("#f4dbd6"),
-            [Enum.UIThemeKey.flamingo]: Color.fromHex("#f0c6c6"),
-            [Enum.UIThemeKey.pink]: Color.fromHex("#f5bde6"),
-            [Enum.UIThemeKey.mauve]: Color.fromHex("#c6a0f6"),
-            [Enum.UIThemeKey.red]: Color.fromHex("#ed8796"),
-            [Enum.UIThemeKey.maroon]: Color.fromHex("#ee99a0"),
-            [Enum.UIThemeKey.peach]: Color.fromHex("#f5a97f"),
-            [Enum.UIThemeKey.yellow]: Color.fromHex("#eed496"),
-            [Enum.UIThemeKey.green]: Color.fromHex("#a6da95"),
-            [Enum.UIThemeKey.teal]: Color.fromHex("#8bd5ca"),
-            [Enum.UIThemeKey.sky]: Color.fromHex("#91d7e3"),
-            [Enum.UIThemeKey.sapphire]: Color.fromHex("#7dc4e4"),
-            [Enum.UIThemeKey.blue]: Color.fromHex("#8aadf4"),
-            [Enum.UIThemeKey.lavender]: Color.fromHex("#b7bdf8"),
-            [Enum.UIThemeKey.text]: Color.fromHex("#cad3f5"),
-            [Enum.UIThemeKey.subtext1]: Color.fromHex("#b8c0e0"),
-            [Enum.UIThemeKey.subtext0]: Color.fromHex("#a5adcb"),
-            [Enum.UIThemeKey.overlay2]: Color.fromHex("#939ab7"),
-            [Enum.UIThemeKey.overlay1]: Color.fromHex("#8087a2"),
-            [Enum.UIThemeKey.overlay0]: Color.fromHex("#6e738d"),
-            [Enum.UIThemeKey.surface2]: Color.fromHex("#5b6078"),
-            [Enum.UIThemeKey.surface1]: Color.fromHex("#494d64"),
-            [Enum.UIThemeKey.surface0]: Color.fromHex("#363a4f"),
-            [Enum.UIThemeKey.base]: Color.fromHex("#24273a"),
-            [Enum.UIThemeKey.mantle]: Color.fromHex("#1e2030"),
-            [Enum.UIThemeKey.crust]: Color.fromHex("#181926"),
-            [Enum.UIThemeKey.accent]: Color.fromHex("#b7bdf8")
-        })
-    };
-    static ColorPalettes = {
-        "Default": new ColorPalette("Catppuccin Macchiato", Game.BlockThemes.Default, Game.UIThemes.Default, Enum.ThemeStyle.Dark)
-    };
-    static filterActive(dict, callback, invert = false) {
-        const ret = {};
-        for (const [k, theme] of Object.entries(dict))
-            if ((theme.Enabled && !invert) || (!theme.Enabled && invert)) {
-                ret[k] = theme;
-                if (callback)
-                    callback(k, theme);
-            }
-        return ret;
-    }
-    static get ActiveUIThemes() {
-        return Game.filterActive(Game.UIThemes);
-    }
-    static get ActiveBlockThemes() {
-        return Game.filterActive(Game.BlockThemes);
-    }
-    static get ActiveColorPalettes() {
-        return Game.filterActive(Game.ColorPalettes);
-    }
-    static ApplyUIThemes() {
-    }
-    static ApplyBlockThemes() {
-    }
-    static ApplyColorPalettes() {
-        Game.filterActive(Game.ColorPalettes, (k, theme) => {
-            if (theme.BlockTheme)
-                theme.BlockTheme.Enabled = true;
-            if (theme.UITheme)
-                theme.UITheme.Enabled = true;
-        });
-    }
     static get PixelSize() {
         return Math.min(Game.GameCanvas.Canvas.width / Game.Width, Game.GameCanvas.Canvas.height / Game.Height);
     }
@@ -637,24 +494,24 @@ class Game {
     static get Level() {
         return Levels.get(this.LevelIndex);
     }
+    static get LastLevel() {
+        return Levels.get(this.LevelIndex - 1);
+    }
     static get NextLevel() {
         return Levels.get(this.LevelIndex + 1);
     }
     static set Level(level) {
+        if (level > this.LevelIndex)
+            SFX.levelup.play();
         this.LevelIndex = level;
         this.LevelSpeed = this.Level.Speed;
-        this.ScoreGate = this.NextLevel.ScoreGate;
-        levelText.textContent = (this.LevelIndex + 1).toString();
-        scoreGateText.textContent = this.ScoreGate.toString();
-        scoreGateRelText.textContent = (this.ScoreGate - this.score).toString();
-        scoreGatePercentText.textContent = Math.trunc((this.score / this.ScoreGate) * 100).toString();
+        Game.drawScoreText();
     }
     static get Running() {
         return Game._running;
     }
     static _running;
     static _data;
-    static _time;
     static _thread_id;
     static _lock_thread_id;
     static GridDrawn = false;
@@ -677,18 +534,17 @@ class Game {
     static get Data() {
         return Game._data;
     }
-    static get Time() {
-        return Game._time;
-    }
     static Reset() {
+        if (Game.score > Game.HighScore)
+            Game.HighScore = Game.score;
         Game._running = false;
         Game.TogglePause(true);
-        Game._time = 0;
+        Game.LockMovement = false;
         Game.Level = 0;
-        Game.Score = 0;
+        Game.linesCleared = 0;
         Game.LevelSpeed = 1;
         Game.LevelSpeed = this.Level.Speed;
-        Game.ScoreGate = this.NextLevel.ScoreGate;
+        Game.Score = 0;
         if (!Game.GridDrawn)
             Game.DrawGrid();
         Game.BlockCanvas.ClearCanvas();
@@ -703,14 +559,12 @@ class Game {
                 Game._data[y][x] = 0;
         }
     }
-    static NewGame() {
-        Game.Reset();
-    }
+    static ReloadPage = () => window.location.reload();
     static rgt() {
         Game._thread_id = setTimeout(Game.GameTick, Game.Speed);
     }
     static async GameTick() {
-        if (Game.Paused)
+        if (Game.Paused || Game.LockMovement)
             return Game.rgt();
         const moveRes = await Game.CurrentBlock?.Move(0, 1, undefined, true);
         if (Game.CurrentBlock && moveRes === false && !Game._lock_thread_id) {
@@ -742,8 +596,11 @@ class Game {
         Game.rgt();
     }
     static blockFeed;
+    static randomBag;
     static randBlock() {
-        return Utils.PickRandomFromDict(Blocks);
+        if (!Game.randomBag)
+            Game.randomBag = new BagArray(Object.values(Blocks));
+        return Game.randomBag.pick();
     }
     static heldBlock;
     static holdCooldown = false;
@@ -764,13 +621,15 @@ class Game {
         Game.RedrawHeldBlock();
         if (!Game.heldBlock)
             return;
-        Game.HoldCanvas.Canvas.animate([{ scale: .9 }, { scale: 1 }], { easing: "ease", duration: 100 });
+        SFX.hold.play();
+        bounceAnim(Game.HoldCanvas.Canvas);
     }
     static RandomBlock() {
+        Game.LockMovement = false;
         Game.blockFeed.push(Game.randBlock());
         const newBlock = Game.blockFeed.get(0) ? new BlockInstance(Game.blockFeed.get(0)) : undefined;
         Game.RedrawNextBlocks();
-        Game.NextCanvas.Canvas.animate([{ scale: .9 }, { scale: 1 }], { easing: "ease", duration: 100 });
+        bounceAnim(Game.NextCanvas.Canvas);
         return newBlock;
     }
     static get NextBlock() {
@@ -803,27 +662,6 @@ class Game {
             gameCanvas.Context.moveTo(Game.GameOffset.X + sX, Game.GameOffset.Y + y * Game.PixelSize);
             gameCanvas.Context.lineTo(Game.GameOffset.X + sX + (width ?? Game.Width) * Game.PixelSize, Game.GameOffset.Y + y * Game.PixelSize);
             gameCanvas.Context.stroke();
-        }
-    }
-    static EraseShape(self, x, y, shape) {
-        if (Game !== self && self !== Game.CurrentBlock)
-            return;
-        if (self instanceof BlockInstance) {
-            x ??= self.X;
-            y ??= self.Y;
-            shape ??= self.CurrentShape;
-        }
-        else {
-            x ??= 0;
-            y ??= 0;
-            shape ??= [];
-        }
-        for (const [oY, row] of shape.entries()) {
-            for (const [oX, col] of row.entries()) {
-                if (col === 0)
-                    continue;
-                Game._data[y + oY][x + oX] = 0;
-            }
         }
     }
     static WriteShape(self, x, y, shape) {
@@ -873,7 +711,7 @@ class Game {
         let [lY, hY] = [block.LowestPoint.Y, block.HighestPoint.Y];
         if (lY === hY)
             hY = 0;
-        BlockInstance.Draw(block, Game.HoldCanvas, Game.Width / 2 - block.CurrentShape[0].length / 2, (Game.Height / 2) - (lY - hY), true); // Draw hold block
+        BlockInstance.Draw(block, Game.HoldCanvas, Game.Width / 2 - block.CurrentShape[0].length / 2, (Game.Height / 2) - (lY - hY), true);
         if (!Game.DisableGrid) {
             Game.HoldCanvas.Context.strokeStyle = "#18192680";
             BlockInstance.Draw(block, Game.HoldCanvas, Game.Width / 2 - block.CurrentShape[0].length / 2, (Game.Height / 2) - (lY - hY), true, true);
@@ -889,11 +727,11 @@ class Game {
             if (!blockShape)
                 continue;
             const block = new BlockInstance(blockShape).Clone();
-            let [lY, hY] = [block.LowestPoint.Y, block.HighestPoint.Y];
+            let hY = block.HighestPoint.Y;
             const prevBlock = Game.blockFeed.get(i - 1) && positions[i - 1] ? new BlockInstance(Game.blockFeed.get(i - 1)) : undefined;
             const [pX, pY] = [Game.Width / 2 - block.CurrentShape[0].length / 2, (positions[i - 1]?.Y ?? 5) + (prevBlock?.LowestPoint.Y ?? -1) + 1 - hY + 1];
             positions[i] = new Point(pX, pY);
-            BlockInstance.Draw(block, Game.NextCanvas, pX, pY, true); // Draw next block
+            BlockInstance.Draw(block, Game.NextCanvas, pX, pY, true);
             if (!Game.DisableGrid) {
                 Game.NextCanvas.Context.strokeStyle = "#18192680";
                 BlockInstance.Draw(block, Game.NextCanvas, pX, pY, true, true);
@@ -918,9 +756,21 @@ class Game {
     static async InstantDrop(px, py) {
         if (py >= Game.Height - 1 || Game._data[py][px] === undefined)
             return;
+        let movement = 0;
         for (let y = py + 1; y < Game.Height; y++) {
             if (Game._data[y][px] !== 0)
-                return;
+                break;
+            if (Game._data[py][px] === 0)
+                continue;
+            movement++;
+        }
+        if (movement > maxMovement)
+            maxMovement = movement;
+        for (let y = py + 1; y < Game.Height; y++) {
+            if (Game._data[y][px] !== 0)
+                break;
+            if (Game._data[py][px] === 0)
+                continue;
             Game._data[y][px] = Game._data[py][px];
             Game._data[py][px] = 0;
             py++;
@@ -936,8 +786,10 @@ class Game {
         Game.BlockCanvas.ClearCanvas();
         for (let y = 0; y < Game.Height; y++) {
             if (Game._data[y].every(col => col !== 0)) {
-                await Game.EraseLine(Game, y);
+                SFX.clear.play();
                 lineCount++;
+                Game.LinesCleared++;
+                await Game.EraseLine(Game, y);
                 for (let oY = y - 1; oY >= 0; oY--) {
                     for (let x = 0; x < Game.Width; x++) {
                         Game._data[oY + 1][x] = Game._data[oY][x];
@@ -948,10 +800,17 @@ class Game {
             }
         }
         if (Game.Physics) {
+            maxMovement = 0;
             for (let y = Game.Height - 1; y > 0; y--) {
                 for (let x = 0; x < Game.Width; x++) {
                     Game.InstantDrop(x, y);
+                }
+            }
+            await sleep((Game.FixedAnimClearTime ? Game.AnimClearTime / Game.Width : Game.AnimClearTime) * maxMovement);
+            for (let y = Game.Height - 1; y > 0; y--) {
+                if (Game._data[y].every(col => col !== 0)) {
                     cFlag = true;
+                    break;
                 }
             }
         }
@@ -963,7 +822,8 @@ class Game {
         Game.holdCooldown = false;
         if (self !== Game.CurrentBlock)
             return;
-        await Game.handleClears();
+        while (await Game.handleClears())
+            ;
         Game.RedrawCanvas();
         Game.CurrentBlock = Game.RandomBlock();
         if (!Game.CurrentBlock?.IsValidPosition()) {
@@ -977,12 +837,13 @@ class Game {
             if (el.id === "settings")
                 RejectSettingsBuffer.Fire();
         });
+        const wasPaused = Game.Paused;
         Game.Paused = paused === undefined ? !Game.Paused : paused;
         if (Game.Paused)
             document.getElementById("pause-ind")?.classList.add("paused");
         else
             document.getElementById("pause-ind")?.classList.remove("paused");
-        document.querySelectorAll(".game-canvas, .right-stack, .left-stack").forEach(canvas => {
+        document.querySelectorAll(".game-canvas, .right-stack").forEach(canvas => {
             if (Game.Paused)
                 canvas.classList.add("paused");
             else
@@ -992,23 +853,17 @@ class Game {
             document.getElementById("pause-text").innerText = "Game Over!";
             document.getElementById("pause-resume").classList.add("hidden");
             document.getElementById("pause-restart").innerText = "Start";
+            if (!wasPaused)
+                SFX.gameover.play();
         }
         else {
             document.getElementById("pause-text").innerText = "Paused...";
             document.getElementById("pause-resume").classList.remove("hidden");
             document.getElementById("pause-restart").innerText = "Restart";
         }
-        if (Game.Paused) {
-            PauseMenuSel = 0;
+        if (Game.Paused)
             updateSelectionButtons();
-        }
     }
-}
-function clamp(x, min, max) {
-    return Math.min(Math.max(x, min), max);
-}
-function dummy(x) {
-    return x;
 }
 class Signal {
     subs = [];
@@ -1028,7 +883,9 @@ class Signal {
 }
 const settingsWin = document.getElementById("settings");
 const Settings = {
-    MaxSpeed: settingsWin?.querySelector("#settings-game-max-speed"),
+    AutoPause: settingsWin?.querySelector("#settings-auto-pause"),
+    ResetSettings: settingsWin?.querySelector("#settings-advanced-reset-settings"),
+    ResetHighScore: settingsWin?.querySelector("#settings-advanced-reset-highscore"),
     BlockScale: settingsWin?.querySelector("#settings-fun-block-scale"),
     LockDelay: settingsWin?.querySelector("#settings-game-lock-delay"),
     KeyRepeatDelay: settingsWin?.querySelector("#settings-key-repeat-delay"),
@@ -1056,6 +913,61 @@ const Settings = {
 };
 const SettingsBuffer = new Map();
 const settingsTitle = document.getElementById("settings-title");
+function LoadSettings() {
+    if (localStorage.getItem("SETTINGS/ResetHighScore")) {
+        localStorage.removeItem("SETTINGS/ResetHighScore");
+        localStorage.removeItem("HighScore");
+    }
+    Game.loadHighScore();
+    if (localStorage.getItem("SETTINGS/ResetSettings")) {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            let k = localStorage.key(i);
+            if (!k || !k.startsWith("SETTINGS/"))
+                continue;
+            keys.push(k);
+        }
+        for (const k of keys)
+            localStorage.removeItem(k);
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+        let k = localStorage.key(i);
+        if (!k || !k.startsWith("SETTINGS/"))
+            continue;
+        const strValue = localStorage.getItem(k);
+        if (!strValue)
+            continue;
+        k = k.slice("SETTINGS/".length);
+        const jsonValue = JSON.parse(strValue);
+        const el = document.getElementById(jsonValue.el);
+        if (!el)
+            continue;
+        setAttr(Game, k, jsonValue.value);
+        const label = document.getElementById(jsonValue.el + "-label");
+        if (label)
+            label.textContent = jsonValue.value.toString();
+        if (el instanceof HTMLInputElement) {
+            switch (el.type) {
+                case "range":
+                case "number":
+                    if (el.classList.contains("percent"))
+                        el.valueAsNumber = jsonValue.value * parseFloat(el.max);
+                    else
+                        el.valueAsNumber = jsonValue.value;
+                    break;
+                case "checkbox":
+                    el.checked = jsonValue.value;
+                    break;
+                default:
+                    el.value = jsonValue.value;
+                    break;
+            }
+        }
+        else {
+            el.textContent = jsonValue.value;
+        }
+    }
+}
 function UpdateSettingsBuffer(k, data) {
     const label = document.getElementById(data.el.id + "-label");
     if (label)
@@ -1069,20 +981,34 @@ function UpdateSettingsBuffer(k, data) {
     SettingsBuffer.set(k, data);
     settingsTitle.textContent = "Settings*";
 }
+const DestructiveFuncs = [Game.ReloadPage];
 function WriteSettingsBuffer() {
+    const funcs = [];
     for (const [k, v] of SettingsBuffer.entries()) {
         setAttr(Game, k, v.value);
+        localStorage.setItem(`SETTINGS/${k}`, JSON.stringify({ value: v.value, el: v.el.id }));
         if (v.funcs && v.funcs.length !== 0) {
             for (const f of v.funcs) {
                 let x = getAttr(Game, f);
-                if (x === undefined)
+                if (x === undefined || funcs.indexOf(x) !== -1)
                     continue;
-                x();
+                funcs.push(x);
             }
         }
     }
     SettingsBuffer.clear();
     settingsTitle.textContent = "Settings";
+    const destructiveFuncs = [];
+    for (const f of funcs) {
+        const dI = DestructiveFuncs.indexOf(f);
+        if (dI !== -1) {
+            destructiveFuncs[dI] = f;
+            continue;
+        }
+        f();
+    }
+    for (const f of destructiveFuncs)
+        f();
 }
 const RejectSettingsBuffer = new Signal();
 RejectSettingsBuffer.Connect(() => {
@@ -1097,20 +1023,16 @@ function handleSettings() {
             label.textContent = getAttr(Game, k);
         if (el instanceof HTMLInputElement) {
             if (el.type === "number" || el.type === "range") {
-                const min = parseFloat(el.min ?? "0");
-                const max = parseFloat(el.max ?? "100");
+                const [min, max] = [parseFloat(el.min ?? "0"), parseFloat(el.max ?? "100")];
                 const defaultVal = getAttr(Game, k);
-                if (el.classList.contains("percent"))
-                    el.valueAsNumber = getAttr(Game, k) * max;
-                else
-                    el.valueAsNumber = getAttr(Game, k);
+                el.valueAsNumber = getAttr(Game, k) * (el.classList.contains("percent") ? max : 1);
                 const funcs = (el.dataset.funcs ?? "").split(",");
                 el.addEventListener("change", () => {
                     if (isNaN(el.valueAsNumber)) {
                         el.valueAsNumber = SettingsBuffer.get(k)?.value ?? (getAttr(Game, k) ?? defaultVal) * (el.classList.contains("percent") ? max : 1);
                         return;
                     }
-                    const val = (el.classList.contains("int") ? Math.trunc : dummy)(clamp(el.valueAsNumber, min, max));
+                    const val = (el.classList.contains("int") ? Math.trunc : Utils.dummy)(Utils.clamp(el.valueAsNumber, min, max));
                     UpdateSettingsBuffer(k, { value: (el.classList.contains("percent") ? val / max : val), funcs: funcs, el: el });
                     el.valueAsNumber = val;
                 });
@@ -1142,17 +1064,15 @@ function handleSettings() {
             }
         }
         else if (el instanceof HTMLSelectElement) {
-            if (el.classList.contains("ease")) {
-                el.value = getAttr(Game, k);
-                const defaultVal = el.value;
-                const funcs = (el.dataset.funcs ?? "").split(",");
-                el.addEventListener("change", () => {
-                    UpdateSettingsBuffer(k, { value: el.value, el: el, funcs: funcs });
-                });
-                RejectSettingsBuffer.Connect(() => {
-                    el.value = getAttr(Game, k) ?? defaultVal;
-                });
-            }
+            el.value = getAttr(Game, k);
+            const defaultVal = el.value;
+            const funcs = (el.dataset.funcs ?? "").split(",");
+            el.addEventListener("change", () => {
+                UpdateSettingsBuffer(k, { value: el.value, el: el, funcs: funcs });
+            });
+            RejectSettingsBuffer.Connect(() => {
+                el.value = getAttr(Game, k) ?? defaultVal;
+            });
         }
     }
 }
@@ -1177,38 +1097,45 @@ class NumberRange {
     Max;
     static infinite = new NumberRange(-Infinity, Infinity);
 }
+const Levels = new InfiniteLevelArray([]);
 class Level {
-    constructor(name, speed, scoreGate, speedMode = Enum.ModeOperation.Multiply, scoreGateMode = Enum.ModeOperation.Multiply, speedRange = NumberRange.infinite, scoreGateRange = NumberRange.infinite, scoreMultiplier) {
+    constructor(name, speed, clearGate = () => 10 * (this.LevelNumber - 1), speedMode = Enum.ModeOperation.Multiply, speedRange = NumberRange.infinite, scoreMultiplier) {
         this.Name = name;
         this.speed = speed;
-        this.scoreGate = scoreGate;
+        this.clearGate = clearGate;
         this.SpeedMode = speedMode;
-        this.ScoreGateMode = scoreGateMode;
         this.SpeedRange = speedRange;
-        this.ScoreGateRange = scoreGateRange;
         if (scoreMultiplier)
             this.scoreMultiplier = scoreMultiplier;
     }
+    Clone(index) {
+        const lvl = new Level(this.Name, this.Speed, this.clearGate, this.SpeedMode, this.SpeedRange, this.scoreMultiplier);
+        lvl.levelIndex = index;
+        return lvl;
+    }
+    levelIndex;
+    get LevelNumber() {
+        return (this.levelIndex ?? Levels.indexOf(this)) + 1;
+    }
     Name;
     speed;
-    scoreGate;
+    clearGate;
     scoreMultiplier = function (index) {
-        return 1 + (index / 25);
+        return 1 + (index / 100);
     };
-    ScoreMultiplier() {
-        return this.scoreMultiplier(Levels.indexOf(this));
+    get ScoreMultiplier() {
+        return this.scoreMultiplier(this.LevelNumber - 1);
     }
     SpeedMode;
-    ScoreGateMode;
     SpeedRange;
-    ScoreGateRange;
     get Speed() {
-        return clamp(this.SpeedMode(Game.LevelSpeed, this.speed), this.SpeedRange.Min, this.SpeedRange.Max);
+        return Utils.clamp(this.SpeedMode(Game.LevelSpeed, this.speed), this.SpeedRange.Min, this.SpeedRange.Max);
     }
-    get ScoreGate() {
-        return Math.round(clamp(this.ScoreGateMode(Game.ScoreGate, this.scoreGate), this.ScoreGateRange.Min, this.ScoreGateRange.Max));
+    get ClearGate() {
+        return this.clearGate();
     }
 }
+Levels.push(new Level("1", 1.0, () => 10, Enum.ModeOperation.Set), new Level("2..", 1.15, undefined, (x, y) => ((y + 2) ^ Game.LevelNumber) / 100));
 class Block {
     constructor(blockShapes, blockData, symbol) {
         if (blockShapes.length < 4)
@@ -1229,7 +1156,6 @@ class BlockInstance extends Block {
     constructor(block) {
         super(block.Shapes, block.Data, block.Symbol);
         this._x = Math.floor(Game.Width / 2 - this.CurrentShape[0].length / 2);
-        // this._y = 0-this.HighestPoint.Y;
         this.targetPos = new Point(this._x, this._y);
     }
     _x = 0;
@@ -1258,9 +1184,7 @@ class BlockInstance extends Block {
             for (const [oX, col] of row.entries()) {
                 if (col === 0)
                     continue;
-                if (Game.Data[y + oY] === undefined || Game.Data[0][x + oX] === undefined)
-                    return false;
-                if (Game.Data[y + oY][x + oX] !== 0)
+                if (Game.Data[y + oY] === undefined || Game.Data[0][x + oX] === undefined || Game.Data[y + oY][x + oX] !== 0)
                     return false;
             }
         }
@@ -1273,6 +1197,9 @@ class BlockInstance extends Block {
     }
     dropping = false;
     isFake = false;
+    get IsClone() {
+        return this.isFake;
+    }
     Clone() {
         const clone = new BlockInstance(this.toBlock());
         clone.isFake = true;
@@ -1297,6 +1224,8 @@ class BlockInstance extends Block {
             return !this.dropping ? false : undefined;
         if (isInstantDrop)
             this.dropping = true;
+        else
+            SFX.blockMove.play();
         this.targetPos = new Point(x, y);
         if (Game.Anims) {
             const tData = { s: new Point(this._x, this._y), e: this.targetPos };
@@ -1314,10 +1243,11 @@ class BlockInstance extends Block {
             });
             var isComplete = false;
             const fin = () => {
-                if (isInstantDrop)
-                    this.dropping = false;
                 isComplete = true;
-                resolve(undefined);
+                if (isInstantDrop) {
+                    this.dropping = false;
+                    resolve(undefined);
+                }
             };
             this.tween.onComplete(fin);
             this.tween.onStop(fin);
@@ -1329,8 +1259,8 @@ class BlockInstance extends Block {
                     requestAnimationFrame(updateFunc);
             };
             requestAnimationFrame(updateFunc);
-            await comp;
-            await sleep(2);
+            if (isInstantDrop)
+                await comp;
         }
         else {
             [this._x, this._y] = [this.targetPos.X, this.targetPos.Y];
@@ -1341,36 +1271,51 @@ class BlockInstance extends Block {
         return !this.dropping ? true : false;
     }
     Rotate(reverse = false) {
+        const success = () => {
+            this.Draw();
+            SFX.blockrotate.play();
+            return true;
+        };
         let dir = (reverse) ? -1 : 1;
         const newRot = Utils.OverflowOperate(this.Rotation, dir, 0, 3);
         if (!this.IsValidPosition(undefined, undefined, this.Shapes[newRot])) {
             for (let i = 1; i <= this.Shapes[newRot][0].length; i++) {
                 if (this.IsValidPosition((this.targetPos?.X ?? 0) - i, undefined, this.Shapes[newRot])) {
-                    this.tween.stop();
+                    this._x = this.targetPos?.X ?? 0;
                     this.Rotation = newRot;
                     this._x = (this.targetPos?.X ?? 0) - i;
                     this.targetPos = new Point(this._x, this.targetPos?.Y ?? 0);
-                    this.Draw();
-                    return true;
+                    return success();
                 }
                 if (this.IsValidPosition((this.targetPos?.X ?? 0) + i, undefined, this.Shapes[newRot])) {
-                    this.tween.stop();
+                    this._x = this.targetPos?.X ?? 0;
                     this.Rotation = newRot;
                     this._x = (this.targetPos?.X ?? 0) + i;
                     this.targetPos = new Point(this._x, this.targetPos?.Y ?? 0);
-                    this.Draw();
-                    return true;
+                    return success();
+                }
+                if (this.IsValidPosition(undefined, (this.targetPos?.Y ?? 0) - i, this.Shapes[newRot])) {
+                    this._y = this.targetPos?.Y ?? 0;
+                    this.Rotation = newRot;
+                    this._y = (this.targetPos?.Y ?? 0) - i;
+                    this.targetPos = new Point(this.targetPos?.X ?? 0, this._y);
+                    return success();
+                }
+                if (this.IsValidPosition(undefined, (this.targetPos?.Y ?? 0) + i, this.Shapes[newRot])) {
+                    this._y = this.targetPos?.Y ?? 0;
+                    this.Rotation = newRot;
+                    this._y = (this.targetPos?.Y ?? 0) + i;
+                    this.targetPos = new Point(this.targetPos?.X ?? 0, this._y);
+                    return success();
                 }
             }
+            SFX.negative.play();
             return false;
         }
         this.Rotation = newRot;
-        this.Draw();
-        return true;
+        return success();
     }
     static Draw(block, canvas, x, y, drawColor, outline, width, height) {
-        if (!block.isFake)
-            return;
         block._draw(canvas, x, y, drawColor, outline, width, height);
     }
     _draw(canvas = Game.BlockCanvas, x = this._x, y = this._y, drawColor = false, outline = false, width = 1, height = 1) {
@@ -1391,18 +1336,16 @@ class BlockInstance extends Block {
         }
     }
     Draw(canvas = Game.BlockCanvas) {
-        if (!this.IsValidPosition())
+        if (!this.IsValidPosition() || this.isFake)
             return;
         if (canvas === Game.BlockCanvas)
             canvas.ClearCanvas();
         canvas.Context.fillStyle = this.Data.Color.RGBA;
         this._draw(canvas);
-        // Draw ghost block
         if (Game.GhostBlockOpacity > 0 && canvas === Game.BlockCanvas && this.LowestValidY > this._y) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.GhostBlockOpacity);
             this._draw(canvas, !Game.AnimGhostBlock ? this.targetPos?.X : this._x, this.LowestValidY);
         }
-        // Draw accublock
         if (Game.RawBlockOpacity > 0 && canvas === Game.BlockCanvas) {
             canvas.Context.fillStyle = this.Data.Color.WithOpacity(Game.RawBlockOpacity);
             this._draw(canvas, this.targetPos?.X, this.targetPos?.Y);
@@ -1420,10 +1363,12 @@ class BlockInstance extends Block {
         this.stamping = false;
     }
     async InstantDrop() {
+        Game.LockMovement = true;
         const y = this.LowestValidY - (this.targetPos?.Y ?? 0);
-        Game.Score += y * Enum.BaseScores.Hard;
         await this.Move(0, y, true);
+        SFX.harddrop.play();
         await this.Stamp();
+        Game.Score += y * Enum.BaseScores.Hard;
     }
     get LowestValidY() {
         let y = this.targetPos?.Y ?? 0;
@@ -1464,10 +1409,6 @@ class BlockInstance extends Block {
         return new Block(this.Shapes, this.Data, this.Symbol);
     }
 }
-const Levels = new InfiniteArray([
-    new Level("1", 1.0, 0, Enum.ModeOperation.Set, Enum.ModeOperation.Set),
-    new Level("2..", 1.05, 1000, (x, y) => Math.max(1.064 ^ Game.LevelNumber, Game.MaxSpeed), Enum.ModeOperation.Set)
-]);
 const Blocks = {
     "I": new Block([
         [
@@ -1624,43 +1565,6 @@ const Blocks = {
         ]
     ], new BlockData("#f5a97f"), "L")
 };
-class ModEngine {
-    static ModList = {};
-    static LoadMod(mod) {
-        if (this.ModList[mod.Name] !== undefined)
-            return false;
-        this.ModList[mod.Name] = mod;
-        return true;
-    }
-}
-class Mod {
-    constructor(modData) {
-        this.Name = modData.Name;
-        this.Description = modData.Description ?? "";
-        this.Blocks = modData["Custom Blocks"];
-    }
-    ;
-    Name;
-    Description;
-    Blocks;
-}
-function onResize() {
-    const cond = document.documentElement.scrollWidth <= window.innerWidth || document.documentElement.scrollHeight <= window.innerHeight;
-    document.querySelectorAll(".game-canvas, .modal").forEach(canvas => {
-        if (cond) {
-            canvas.style.height = "100%";
-            canvas.style.width = "auto";
-        }
-        else {
-            canvas.style.height = "auto";
-            canvas.style.width = "100%";
-        }
-    });
-}
-// const resizeObserver = new ResizeObserver(onResize);
-// resizeObserver.observe(document.body);
-// window.addEventListener("resize",onResize);
-window.addEventListener("click", loadSFX);
 function getRangeStep(range) {
     const int = range.classList.contains("int");
     let step = ((int ? parseInt : parseFloat)(range.step)) || 1;
@@ -1670,19 +1574,35 @@ function getRangeStep(range) {
         step = parseFloat(range.dataset.shiftStep ?? "") || (step * 5);
     else if (heldKeys.Control || heldKeys.Meta)
         step = (Math.abs(parseFloat(range.max)) + Math.abs(parseFloat(range.min))) / 2;
-    return (int ? Math.round : dummy)(step);
+    return (int ? Math.round : Utils.dummy)(step);
 }
 function stepRange(range, dir = 1) {
     const int = range.classList.contains("int");
-    return clamp((int ? parseInt : parseFloat)(range.value) + (getRangeStep(range) * dir), (int ? parseInt : parseFloat)(range.min), (int ? parseInt : parseFloat)(range.max));
+    return Utils.clamp((int ? parseInt : parseFloat)(range.value) + (getRangeStep(range) * dir), (int ? parseInt : parseFloat)(range.min), (int ? parseInt : parseFloat)(range.max));
 }
-const heldKeys = { "Shift": false, "Control": false, "Meta": false };
+const heldKeys = {};
 const keyThreads = {};
+var pausedFromFocusLoss;
+window.addEventListener("focus", () => {
+    if (pausedFromFocusLoss && Game.Paused && Game.AutoPause)
+        Game.TogglePause(false);
+    pausedFromFocusLoss = false;
+});
+window.addEventListener("blur", () => {
+    for (const k of Object.keys(heldKeys))
+        heldKeys[k] = false;
+    if (!Game.Paused && Game.AutoPause) {
+        Game.TogglePause(true);
+        pausedFromFocusLoss = true;
+    }
+});
 async function handleKeypress(event) {
+    if (clickWar)
+        return event.preventDefault();
     let eventKey = event.key;
     if (eventKey === "Tab" && heldKeys.Shift)
         eventKey = "ShiftTab";
-    if (event.defaultPrevented || !__sfx_loaded)
+    if (event.defaultPrevented || !SFX)
         return;
     if (!Game.Running || Game.Paused) {
         if (document.activeElement?.classList.contains("keybind") && document.activeElement.textContent === "...")
@@ -1703,7 +1623,8 @@ async function handleKeypress(event) {
             case "ShiftTab":
             case "ArrowUp":
                 PauseMenuSel = Utils.OverflowOperate(PauseMenuSel, -1, 0, PauseBtns.length - 1);
-                return focusButton();
+                focusButton();
+                return event.preventDefault();
             case "ArrowRight":
                 if (PauseBtns[PauseMenuSel] instanceof HTMLInputElement) {
                     if (PauseBtns[PauseMenuSel].type !== "range") {
@@ -1719,7 +1640,8 @@ async function handleKeypress(event) {
             case "Tab":
             case "ArrowDown":
                 PauseMenuSel = Utils.OverflowOperate(PauseMenuSel, 1, 0, PauseBtns.length - 1);
-                return focusButton();
+                focusButton();
+                return event.preventDefault();
             case "z":
             case "c":
             case " ":
@@ -1747,7 +1669,7 @@ async function handleKeypress(event) {
             default: return;
         }
     }
-    if (Game.Paused && event.key !== "Escape")
+    if ((Game.Paused && event.key !== "Escape") || Game.LockMovement)
         return;
     switch (event.key) {
         case Game.KeyBinds.Left:
@@ -1778,7 +1700,7 @@ async function handleKeypress(event) {
         case "Escape":
             Game.TogglePause();
             break;
-        default: return console.log(event.key);
+        default: return;
     }
     event.preventDefault();
 }
@@ -1809,8 +1731,6 @@ window.addEventListener("keydown", async (event) => {
         }, isMoveKey ? Game.MoveKeyRepeatDelay : Game.KeyRepeatDelay);
     }
 }, true);
-Game.DrawGrid();
-Game.NewGame();
 document.getElementById("pause-resume")?.addEventListener("click", () => {
     if (!Game.Running) {
         Game.StartGame();
@@ -1822,14 +1742,14 @@ document.getElementById("pause-restart")?.addEventListener("click", () => {
     Game.Reset();
     Game.StartGame();
 });
-document.getElementById("pause-mods")?.addEventListener("click", () => {
+document.getElementById("pause-help")?.addEventListener("click", () => {
     if (document.querySelector(".modal.active"))
         return;
-    document.getElementById("mods")?.classList.add("active");
+    document.getElementById("help")?.classList.add("active");
     updateSelectionButtons();
 });
-document.getElementById("mods-back")?.addEventListener("click", () => {
-    document.getElementById("mods")?.classList.remove("active");
+document.getElementById("help-back")?.addEventListener("click", () => {
+    document.getElementById("help")?.classList.remove("active");
     updateSelectionButtons();
 });
 document.getElementById("pause-about")?.addEventListener("click", () => {
@@ -1879,43 +1799,149 @@ document.querySelectorAll("details").forEach(el => {
         `;
     });
 });
+const isMac = navigator.platform === "MacIntel";
 const keyTranslationMap = {
-    " ": "Space"
+    "0": "",
+    "1": "",
+    "2": "",
+    "3": "",
+    "4": "",
+    "5": "",
+    "6": "",
+    "7": "",
+    "8": "",
+    "9": "",
+    a: "",
+    b: "",
+    c: "",
+    d: "",
+    e: "",
+    f: "",
+    g: "",
+    h: "",
+    i: "",
+    j: "",
+    k: "",
+    l: "",
+    m: "",
+    n: "",
+    o: "",
+    p: "",
+    q: "",
+    r: "",
+    s: "",
+    t: "",
+    u: "",
+    v: "",
+    w: "",
+    x: "",
+    y: "",
+    z: "",
+    Alt: "",
+    "'": "",
+    ArrowDown: "",
+    ArrowLeft: "",
+    ArrowRight: "",
+    ArrowUp: "",
+    "*": "",
+    Backspace: "",
+    "[": "",
+    "]": "",
+    "<": "",
+    ">": "",
+    CapsLock: "",
+    "^": "",
+    ":": "",
+    ",": "",
+    Control: "",
+    Delete: "",
+    End: "",
+    Enter: "",
+    "=": "",
+    Escape: "",
+    "!": "",
+    F1: "",
+    F2: "",
+    F3: "",
+    F4: "",
+    F5: "",
+    F6: "",
+    F7: "",
+    F8: "",
+    F9: "",
+    F10: "",
+    F11: "",
+    F12: "",
+    Home: "",
+    Insert: "",
+    "-": "",
+    PageDown: "",
+    PageUp: "",
+    ".": "",
+    "+": "",
+    PrintScreen: "",
+    "?": "",
+    "\"": "",
+    ";": "",
+    Shift: "",
+    "\\": "",
+    "/": "",
+    " ": "",
+    Tab: "",
+    "~": "",
+    Meta: "",
+    mac_Command: "",
+    mac_Option: ""
 };
-function translateKey(k, reverse = false) {
+for (const [key, symbol] of Object.entries(keyTranslationMap)) {
+    if (key.length === 1 && key.toUpperCase() !== key) {
+        keyTranslationMap[key.toUpperCase()] = `${keyTranslationMap.Shift}﹢${symbol}`;
+        continue;
+    }
+    if (isMac && (key === "Meta" || key === "Alt")) {
+        if (key === "Meta")
+            keyTranslationMap[key] = keyTranslationMap.mac_Command;
+        if (key === "Alt")
+            keyTranslationMap[key] = keyTranslationMap.mac_Option;
+        continue;
+    }
+}
+function translateKey(k) {
     if (keyTranslationMap[k])
         return keyTranslationMap[k];
-    if (!reverse) {
-        if (k.length === 1)
-            return k.toUpperCase();
-        if (k.startsWith("Arrow"))
-            return `${k.substring(5)} Arrow`;
-    }
-    else {
-        if (k.length === 1)
-            return k.toLowerCase();
-        if (k.endsWith(" Arrow"))
-            return `Arrow${k.substring(0, k.lastIndexOf(" Arrow"))}`;
-    }
     return k;
+}
+function resetKeybindStyle(el) {
+    if (Object.values(keyTranslationMap).indexOf(el.textContent) !== -1)
+        el.classList.remove("active");
 }
 document.querySelectorAll("button.keybind").forEach(el => {
     Game.KeyBinds[el.dataset.bind ?? ""] = el.dataset.key ?? "";
+    let ignoreInput = false;
     function click(event) {
+        if (ignoreInput) {
+            ignoreInput = false;
+            return;
+        }
         if (event.key === "Escape") {
             el.textContent = translateKey(el.dataset.key ?? "");
+            resetKeybindStyle(el);
             return;
         }
         el.dataset.key = event.key;
         event.preventDefault();
-        document.removeEventListener("keydown", click);
+        document.removeEventListener("keyup", click);
         el.textContent = translateKey(event.key);
         Game.KeyBinds[el.dataset.bind ?? ""] = el.dataset.key ?? "";
+        resetKeybindStyle(el);
     }
     el.textContent = translateKey(el.dataset.key ?? "");
-    el.addEventListener("click", () => {
+    resetKeybindStyle(el);
+    el.addEventListener("click", event => {
+        el.classList.add("active");
         el.textContent = "...";
-        document.addEventListener("keydown", click);
+        ignoreInput = !event.isTrusted;
+        document.addEventListener("keyup", click);
     });
 });
 function preventKeyEvents(el) {
@@ -1952,9 +1978,24 @@ document.addEventListener("click", event => {
         open(trg.href);
     }
 });
-let readme = await fetch("./README.md");
-readme = await readme.text();
-readme = await marked.parse(readme);
-const rmt = document.getElementById("about-readme");
-if (rmt)
-    rmt.innerHTML = readme;
+LoadSettings();
+Game.DrawGrid();
+Game.Reset();
+async function genReadme(id, path) {
+    let readme = await fetch(path);
+    readme = await readme.text();
+    readme = await marked.parse(readme);
+    const rmt = document.getElementById(`${id}-readme`);
+    if (rmt)
+        rmt.innerHTML = readme;
+    (rmt?.querySelectorAll("a,h1,h2,h3,tr,.keyboard-selectable")).forEach(el => {
+        el.classList.add("keyboard-selectable");
+        if (el.tabIndex === -1)
+            el.tabIndex = 0;
+    });
+}
+const readmePages = { about: "./README.md", help: "./HELP.md" };
+for (const [id, path] of Object.entries(readmePages)) {
+    genReadme(id, path);
+}
+document.getElementById("pause-text").innerHTML = "<b>Bogetris</b>";

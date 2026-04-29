@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<!-- save progress make that happen -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tetris</title>
+    <title>Bogetris</title>
     <link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/DatBogie/datbogie.github.io/refs/heads/main/favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,15 +27,17 @@
     <div class="center game-head">
         <div class="stack">
             <div class="left-stack center">
-                <div class="canvas-box">
-                    <h2>
+                <div id="score-box" class="canvas-box" style="margin-top: 24px; padding: 12px;">
+                    <h2 style="margin: 0;">
+                        <span class="center"><span class="h2">High Score:&nbsp;</span><span id="highscore">NaN</span><span id="new-highscore">New Best!</span></span>
+                        <hr>
                         Score: <span id="score">NaN</span><span class="gap"></span>Level: <span id="level">NaN</span><br>
-                        Next Level: <span id="score-gate-rel">NaN</span><span id="score-total"> / <span id="score-gate">NaN</span></span><span id="score-percent"> (<span id="score-gate-percent">NaN</span>%)</span>
+                        Next Level: <span id="line-clear-rel">NaN</span><span id="score-total"></span>
                     </h2>
                 </div>
             </div>
             <div class="right-stack center">
-                <div class="canvas-box">
+                <div>
                     <h2>Next</h2>
                     <canvas id="next" class="right-canvas" width="320" height="320"></canvas>
                     <h2>Hold</h2>
@@ -53,7 +54,8 @@
                     <button id="pause-resume" class="keyboard-selectable">Resume</button>
                     <button id="pause-restart" class="keyboard-selectable">Restart</button>
                     <button id="pause-settings" class="keyboard-selectable">Settings</button>
-                    <button id="pause-mods" class="keyboard-selectable">Mods</button>
+                    <!-- <button id="pause-mods" class="keyboard-selectable">Mods</button> -->
+                    <button id="pause-help" class="keyboard-selectable">Help</button>
                     <button id="pause-about" class="keyboard-selectable">About</button>
                 </div>
             </div>
@@ -68,10 +70,10 @@
                                     <li><span>Ghost Block Opacity: </span><input id="settings-ghost-opacity" type="number" class="percent keyboard-selectable" min="0" max="100"><span>%</span></li>
                                     <li><span>AccuBlock Opacity: </span><input id="settings-raw-opacity" type="number" class="percent keyboard-selectable" min="0" max="100"><span>%</span></li>
                                     <hr>
-                                    <li title="The maximum speed multiplier the vanilla game can achieve after moving up a level."><span>Natural Max Speed: </span><input id="settings-game-max-speed" type="number" class="keyboard-selectable" data-funcs="NewGame" min="1" max="10"><span>&times;</span></li>
                                     <li><span>Lock Delay: </span><input id="settings-game-lock-delay" type="number" class="int keyboard-selectable" min="0" max="2000" data-funcs="NewGame"><span>ms</span></li>
                                     <li><span>Game Speed: </span><input id="settings-game-speed-mul" type="number" class="keyboard-selectable" data-funcs="NewGame" min="0" max="100"><span>&times;</span></li>
                                     <hr>
+                                    <li><span>Pause on Focus Loss: </span><input id="settings-auto-pause" type="checkbox" autocomplete="off" class="keyboard-selectable"></li>
                                     <li><span>Game Width: </span><input id="settings-game-width" type="number" class="int keyboard-selectable" data-funcs="NewGame,DrawGrid" min="4" max="1000"><span>px</span></li>
                                     <li><span>Game Height: </span><input id="settings-game-height" type="number" class="int keyboard-selectable" data-funcs="NewGame,DrawGrid" min="4" max="1000"><span>px</span></li>
                                     <li><span>Gravity: </span><input id="settings-physics" type="checkbox" autocomplete="off" class="keyboard-selectable" data-funcs="NewGame"></li>
@@ -150,13 +152,22 @@
                                     <li title="Delay between repeated presses.&NewLine;Disable repeating inputs with '0'."><span>Key Repeat Interval: </span><input id="settings-key-repeat-int" type="number" class="int keyboard-selectable" min="0" max="1000"><span>ms</span></li>
                                     <li title="Delay before starting to repeat presses (will cancel if key is released during this time)"><span>Key Repeat Start Delay: </span><input id="settings-key-repeat-delay" type="number" class="int keyboard-selectable" min="0" max="1000"><span>ms</span></li>
                                     <hr>
-                                    <li><span>Move Left: </span><button class="keybind keyboard-selectable" data-bind="Left" data-key="ArrowLeft"></button></li>
-                                    <li><span>Move Right: </span><button class="keybind keyboard-selectable" data-bind="Right" data-key="ArrowRight"></button></li>
-                                    <li><span>Soft Drop: </span><button class="keybind keyboard-selectable" data-bind="Soft" data-key="ArrowDown"></button></li>
-                                    <li><span>Hard Drop: </span><button class="keybind keyboard-selectable" data-bind="Hard" data-key=" "></button></li>
-                                    <li><span>Rotate Clockwise: </span><button class="keybind keyboard-selectable" data-bind="RC" data-key="ArrowUp"></button></li>
-                                    <li><span>Rotate Counterclockwise: </span><button class="keybind keyboard-selectable" data-bind="RCC" data-key="z"></button></li>
-                                    <li><span>Hold Block: </span><button class="keybind keyboard-selectable" data-bind="Hold" data-key="c"></button></li>
+                                    <li><span>Move Left: </span><button class="keybind icon keyboard-selectable" data-bind="Left" data-key="ArrowLeft"></button></li>
+                                    <li><span>Move Right: </span><button class="keybind icon keyboard-selectable" data-bind="Right" data-key="ArrowRight"></button></li>
+                                    <li><span>Soft Drop: </span><button class="keybind icon keyboard-selectable" data-bind="Soft" data-key="ArrowDown"></button></li>
+                                    <li><span>Hard Drop: </span><button class="keybind icon keyboard-selectable" data-bind="Hard" data-key=" "></button></li>
+                                    <li><span>Rotate Clockwise: </span><button class="keybind icon keyboard-selectable" data-bind="RC" data-key="ArrowUp"></button></li>
+                                    <li><span>Rotate Counterclockwise: </span><button class="keybind icon keyboard-selectable" data-bind="RCC" data-key="z"></button></li>
+                                    <li><span>Hold Block: </span><button class="keybind icon keyboard-selectable" data-bind="Hold" data-key="c"></button></li>
+                                </ul>
+                            </li>
+                        </details>
+                        <details>
+                            <summary class="center keyboard-selectable">Advanced</summary>
+                            <li class="details-content">
+                                <ul class="layout left-align">
+                                    <li title="All settings will reset upon saving, and the page will be reloaded.&NewLine;This setting will be unchecked upon reloading."><span style="color: var(--red); font-weight: bolder;">Reset Settings: </span><input id="settings-advanced-reset-settings" type="checkbox" autocomplete="off" class="keyboard-selectable" data-funcs="ReloadPage"></li>
+                                    <li title="Your highscore will reset upon saving, and the page will be reloaded.&NewLine;This setting will be unchecked upon reloading."><span style="color: var(--red); font-weight: bolder;">Reset Highscore: </span><input id="settings-advanced-reset-highscore" type="checkbox" autocomplete="off" class="keyboard-selectable" data-funcs="ReloadPage"></li>
                                 </ul>
                             </li>
                         </details>
@@ -175,11 +186,18 @@
                     <button id="mods-back" class="keyboard-selectable modal-back">Back</button>
                 </div>
             </div>
-            <div id="about" class="center modal">
+            <div id="about" class="center modal docs">
                 <div>About</div>
                 <div id="about-content" class="center modal-content modal-buttons">
-                    <p id="about-readme"></p>
                     <button id="about-back" class="keyboard-selectable modal-back">Back</button>
+                    <p id="about-readme" class="readme"></p>
+                </div>
+            </div>
+            <div id="help" class="center modal docs">
+                <div>Help</div>
+                <div id="help-content" class="center modal-content modal-buttons">
+                    <button id="help-back" class="keyboard-selectable modal-back">Back</button>
+                    <p id="help-readme" class="readme"></p>
                 </div>
             </div>
         </div>
