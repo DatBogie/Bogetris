@@ -490,8 +490,11 @@ class Game {
         newHighScoreBadge.classList.remove("new-highscore");
     }
     private static score:number = 0;
+    static addScore(score:number) {
+        Game.Score += score*Game.Level.ScoreMultiplier;
+    }
     static set Score(score:number) {
-        Game.score = Math.round(score*Game.Level.ScoreMultiplier); // Ensure score is always an int
+        Game.score = Math.round(score); // Ensure score is always an int
         if (Game.linesCleared >= Game.NextLevel.ClearGate) // If score reaches the line clear gate, update it
             Game.Level = Game.LevelIndex+1;
         Game.drawScoreText();
@@ -879,7 +882,7 @@ class Game {
                 }
             }
         }
-        if (lineCount > 0) Game.Score += Enum.BaseScores.Clears.get(lineCount-1);
+        if (lineCount > 0) Game.addScore(Enum.BaseScores.Clears.get(lineCount-1));
         return cFlag;
     }
     // Handle line clears, redraw the canvas, choose a new block, and potentially end the game if a new block cannot be placed upon the current block being stamped
@@ -1219,7 +1222,7 @@ class Level {
 // Infinite levels, since level 2 exponentially increases speed based on current LevelNumber
 Levels.push(
     new Level("1",1.0,undefined,Enum.ModeOperation.Set),
-    new Level("2..",1.15,undefined,(i:number,x:number,y:number)=>(y)*(1+(.01*i)))
+    new Level("2..",1.15,undefined,(i:number,x:number,y:number)=>(y)*(1+(.025*i)))
 );
 
 // Represents a block and its shapes/color
@@ -1457,7 +1460,7 @@ class BlockInstance extends Block {
         await this.Move(0,y,true);
         SFX.harddrop.play();
         await this.Stamp();
-        Game.Score += y*Enum.BaseScores.Hard;
+        Game.addScore(y*Enum.BaseScores.Hard);
     }
     private get LowestValidY() : number {
         let y:number = this.targetPos?.Y ?? 0;
@@ -1788,7 +1791,7 @@ async function handleKeypress(event:KeyboardEvent) : Promise<void> {
             break;
         case Game.KeyBinds.Soft:
             Game.CurrentBlock?.Move(0, 1).then(success=>{
-                if (success) Game.Score += Enum.BaseScores.Soft;
+                if (success) Game.addScore(Enum.BaseScores.Soft);
             });
             break;
         case Game.KeyBinds.RC:

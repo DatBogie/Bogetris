@@ -444,8 +444,11 @@ class Game {
         newHighScoreBadge.classList.remove("new-highscore");
     }
     static score = 0;
+    static addScore(score) {
+        Game.Score += score * Game.Level.ScoreMultiplier;
+    }
     static set Score(score) {
-        Game.score = Math.round(score * Game.Level.ScoreMultiplier);
+        Game.score = Math.round(score);
         if (Game.linesCleared >= Game.NextLevel.ClearGate)
             Game.Level = Game.LevelIndex + 1;
         Game.drawScoreText();
@@ -833,7 +836,7 @@ class Game {
             }
         }
         if (lineCount > 0)
-            Game.Score += Enum.BaseScores.Clears.get(lineCount - 1);
+            Game.addScore(Enum.BaseScores.Clears.get(lineCount - 1));
         return cFlag;
     }
     static async BlockStamped(self) {
@@ -1153,7 +1156,7 @@ class Level {
         return `Level ${this.LevelNumber}: ${this.Speed}x Speed, ${this.ScoreMultiplier}x Score, ${this.ClearGate} Line(s)`;
     }
 }
-Levels.push(new Level("1", 1.0, undefined, Enum.ModeOperation.Set), new Level("2..", 1.15, undefined, (i, x, y) => (y) * (1 + (.01 * i))));
+Levels.push(new Level("1", 1.0, undefined, Enum.ModeOperation.Set), new Level("2..", 1.15, undefined, (i, x, y) => (y) * (1 + (.025 * i))));
 class Block {
     constructor(blockShapes, blockData, symbol) {
         if (blockShapes.length < 4)
@@ -1386,7 +1389,7 @@ class BlockInstance extends Block {
         await this.Move(0, y, true);
         SFX.harddrop.play();
         await this.Stamp();
-        Game.Score += y * Enum.BaseScores.Hard;
+        Game.addScore(y * Enum.BaseScores.Hard);
     }
     get LowestValidY() {
         let y = this.targetPos?.Y ?? 0;
@@ -1699,7 +1702,7 @@ async function handleKeypress(event) {
         case Game.KeyBinds.Soft:
             Game.CurrentBlock?.Move(0, 1).then(success => {
                 if (success)
-                    Game.Score += Enum.BaseScores.Soft;
+                    Game.addScore(Enum.BaseScores.Soft);
             });
             break;
         case Game.KeyBinds.RC:
