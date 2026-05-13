@@ -3,6 +3,11 @@
 APCSP 2026 Create Task Project  
 *Gameplay heavily inspired by The Tetris Company's [Tetris](https://tetris.com)®*
 
+**Where to Play**  
+[datbogie.org](https://datbogie.org/Bogetris) \| [sites.google.com](https://sites.google.com/view/datbogie/github-pages/bogetris)\*
+
+<small style="color: gray">\*_Google Sites allows Bogetris to be played unblocked, **without saving**._</small>
+
 ## License
 
 This project is licensed under the [CC BY-SA 4.0 License](https://raw.githubusercontent.com/DatBogie/Bogetris/refs/heads/main/LICENSE).
