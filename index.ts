@@ -866,7 +866,7 @@ class Game {
                     Game.InstantDrop(x,y);
                 }
             }
-            // await sleep((Game.FixedAnimClearTime? Game.AnimClearTime/Game.Width : Game.AnimClearTime)*maxMovement);
+            await sleep((Game.FixedAnimClearTime? Game.AnimClearTime/Game.Width : Game.AnimClearTime)*maxMovement);
             // for (let y=Game.Height-1; y>0;  y--) {
             //     if (Game._data[y].every(col=>col!==0)) {
             //         cFlag = true;
@@ -895,7 +895,9 @@ class Game {
     static async BlockStamped(self:BlockInstance) : Promise<void> {
         Game.holdCooldown = false;
         if (self !== Game.CurrentBlock) return;
+        Game.LockMovement = true;
         while (await Game.handleClears());
+        Game.LockMovement = false;
         Game.RedrawCanvas();
         Game.CurrentBlock = Game.RandomBlock();
         if (!Game.CurrentBlock?.IsValidPosition()) {

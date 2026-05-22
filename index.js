@@ -843,8 +843,10 @@ class Game {
         Game.holdCooldown = false;
         if (self !== Game.CurrentBlock)
             return;
+        Game.LockMovement = true;
         while (await Game.handleClears())
             ;
+        Game.LockMovement = false;
         Game.RedrawCanvas();
         Game.CurrentBlock = Game.RandomBlock();
         if (!Game.CurrentBlock?.IsValidPosition()) {
