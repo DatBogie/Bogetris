@@ -811,6 +811,15 @@ class Game {
         var cFlag = false;
         let lineCount = 0;
         Game.BlockCanvas.ClearCanvas();
+        if (Game.Physics) {
+            maxMovement = 0;
+            for (let y = Game.Height - 1; y > 0; y--) {
+                for (let x = 0; x < Game.Width; x++) {
+                    Game.InstantDrop(x, y);
+                }
+            }
+            await sleep((Game.FixedAnimClearTime ? Game.AnimClearTime / Game.Width : Game.AnimClearTime) * maxMovement);
+        }
         for (let y = 0; y < Game.Height; y++) {
             if (Game._data[y].every(col => col !== 0)) {
                 SFX.clear.play();
@@ -823,21 +832,6 @@ class Game {
                         if (!cFlag)
                             cFlag = true;
                     }
-                }
-            }
-        }
-        if (Game.Physics) {
-            maxMovement = 0;
-            for (let y = Game.Height - 1; y > 0; y--) {
-                for (let x = 0; x < Game.Width; x++) {
-                    Game.InstantDrop(x, y);
-                }
-            }
-            await sleep((Game.FixedAnimClearTime ? Game.AnimClearTime / Game.Width : Game.AnimClearTime) * maxMovement);
-            for (let y = Game.Height - 1; y > 0; y--) {
-                if (Game._data[y].every(col => col !== 0)) {
-                    cFlag = true;
-                    break;
                 }
             }
         }

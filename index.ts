@@ -859,6 +859,21 @@ class Game {
         var cFlag:boolean = false;
         let lineCount:number = 0;
         Game.BlockCanvas.ClearCanvas();
+        if (Game.Physics) {
+            maxMovement = 0;
+            for (let y=Game.Height-1; y>0; y--) {
+                for (let x=0; x<Game.Width; x++) {
+                    Game.InstantDrop(x,y);
+                }
+            }
+            // await sleep((Game.FixedAnimClearTime? Game.AnimClearTime/Game.Width : Game.AnimClearTime)*maxMovement);
+            // for (let y=Game.Height-1; y>0;  y--) {
+            //     if (Game._data[y].every(col=>col!==0)) {
+            //         cFlag = true;
+            //         break;
+            //     }
+            // }
+        }
         for (let y=0; y < Game.Height; y++) {
             if (Game._data[y].every(col=>col!==0)) {
                 SFX.clear.play();
@@ -870,21 +885,6 @@ class Game {
                         Game._data[oY+1][x] = Game._data[oY][x];
                         if (!cFlag) cFlag = true;
                     }
-                }
-            }
-        }
-        if (Game.Physics) {
-            maxMovement = 0;
-            for (let y=Game.Height-1; y>0; y--) {
-                for (let x=0; x<Game.Width; x++) {
-                    Game.InstantDrop(x,y);
-                }
-            }
-            await sleep((Game.FixedAnimClearTime? Game.AnimClearTime/Game.Width : Game.AnimClearTime)*maxMovement);
-            for (let y=Game.Height-1; y>0;  y--) {
-                if (Game._data[y].every(col=>col!==0)) {
-                    cFlag = true;
-                    break;
                 }
             }
         }
