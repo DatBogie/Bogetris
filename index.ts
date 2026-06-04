@@ -1267,6 +1267,19 @@ class BlockInstance extends Block {
     get Y() : number {
         return this._y;
     }
+    private clampX(x:number) : number {
+        return Utils.clamp(x,0-this.LeftPoint.X,Game.Width-1+this.RightPoint.X);
+    }
+    private clampY(x:number) : number {
+        return Utils.clamp(x,0-this.HighestPoint.Y,Game.Height-1+this.LowestPoint.Y);
+    }
+    
+    set X(x:number) {
+        this._x = this.clampX(x);
+    }
+    set Y(x:number) {
+        this._y = this.clampY(x);
+    }
     get Width() : number {
         return this.CurrentShape[0].length;
     }
@@ -1294,6 +1307,9 @@ class BlockInstance extends Block {
     private targetPos:Point|undefined; // The integer point the block is actually at for collision purposes (mirror of _x,_y when animations are disabled)
     get TargetPos() : Point|undefined {
         return this.targetPos;
+    }
+    set TargetPos(x:Point) {
+        this.targetPos = new Point(this.clampX(x.X),this.clampY(x.Y));
     }
     private dropping:boolean = false;
     private isFake:boolean = false; // Tell if a block is a clone
@@ -1335,8 +1351,8 @@ class BlockInstance extends Block {
             .easing(!isInstantDrop? Game.MoveEase : Game.DropEase)
             .dynamic(true)
             .onUpdate(data=>{
-                this._x=data.X;
-                this._y=data.Y;
+                this.X=data.X;
+                this.Y=data.Y;
                 this.Draw();
             });
             var isComplete = false;
@@ -1360,7 +1376,7 @@ class BlockInstance extends Block {
             if (isInstantDrop) await comp; // Only wait for tween completion when hard dropping
         } else {
             // Instantly update without expending resources to create a tween
-            [this._x, this._y] = [this.targetPos.X, this.targetPos.Y];
+            [this.X, this.Y] = [this.targetPos.X, this.targetPos.Y];
             this.Draw();
             if (isInstantDrop)
                 this.dropping = false;
@@ -1380,30 +1396,30 @@ class BlockInstance extends Block {
         if (!this.IsValidPosition(undefined,undefined,this.Shapes[newRot])) {
             for (let i=1; i<=this.Shapes[newRot][0].length; i++) {
                 if (this.IsValidPosition((this.targetPos?.X ?? 0)-i,undefined,this.Shapes[newRot])) {
-                    this._x = this.targetPos?.X ?? 0;
+                    this.X = this.targetPos?.X ?? 0;
                     this.Rotation = newRot;
-                    this._x = (this.targetPos?.X ?? 0)-i;
+                    this.X = (this.targetPos?.X ?? 0)-i;
                     this.targetPos =  new Point(this._x,this.targetPos?.Y ?? 0);
                     return success();
                 }
                 if (this.IsValidPosition((this.targetPos?.X ?? 0)+i,undefined,this.Shapes[newRot])) {
-                    this._x = this.targetPos?.X ?? 0;
+                    this.X = this.targetPos?.X ?? 0;
                     this.Rotation = newRot;
-                    this._x = (this.targetPos?.X ?? 0)+i;
+                    this.X = (this.targetPos?.X ?? 0)+i;
                     this.targetPos =  new Point(this._x,this.targetPos?.Y ?? 0);
                     return success();
                 }
                 if (this.IsValidPosition(undefined,(this.targetPos?.Y ?? 0)-i,this.Shapes[newRot])) {
-                    this._y = this.targetPos?.Y ?? 0;
+                    this.Y = this.targetPos?.Y ?? 0;
                     this.Rotation = newRot;
-                    this._y = (this.targetPos?.Y ?? 0)-i;
+                    this.Y = (this.targetPos?.Y ?? 0)-i;
                     this.targetPos =  new Point(this.targetPos?.X ?? 0,this._y);
                     return success();
                 }
                 if (this.IsValidPosition(undefined,(this.targetPos?.Y ?? 0)+i,this.Shapes[newRot])) {
-                    this._y = this.targetPos?.Y ?? 0;
+                    this.Y = this.targetPos?.Y ?? 0;
                     this.Rotation = newRot;
-                    this._y = (this.targetPos?.Y ?? 0)+i;
+                    this.Y = (this.targetPos?.Y ?? 0)+i;
                     this.targetPos =  new Point(this.targetPos?.X ?? 0,this._y);
                     return success();
                 }
@@ -1457,7 +1473,7 @@ class BlockInstance extends Block {
     async Stamp() : Promise<void> {
         if (this.dropping || this.stamping) return;
         this.stamping = true;
-        [this._x, this._y] = [this.targetPos?.X ?? 0, this.targetPos?.Y ?? 0];
+        [this.X, this.Y] = [this.targetPos?.X ?? 0, this.targetPos?.Y ?? 0];
         this.Draw(Game.StaleCanvas);
         Game.WriteShape(this, this._x, this._y, this.CurrentShape);
         await Game.BlockStamped(this);
@@ -1482,6 +1498,28 @@ class BlockInstance extends Block {
             }
         }
         return y;
+    }
+    get LeftPoint() : Point {
+        let leftPoint:Point = new Point(this.Width,0);
+        for (const [oY, row] of this.CurrentShape.entries()) {
+            for (const [oX, col] of row.entries()) {
+                if (col === 0) continue;
+                if (oX >= leftPoint.X) continue;
+                leftPoint = new Point(oX,oY);
+            }
+        }
+        return leftPoint;
+    }
+    get RightPoint() : Point {
+        let rightPoint:Point = new Point(-1,0);
+        for (const [oY, row] of this.CurrentShape.entries()) {
+            for (const [oX, col] of row.entries()) {
+                if (col === 0) continue;
+                if (oX <= rightPoint.X) continue;
+                rightPoint = new Point(oX,oY);
+            }
+        }
+        return rightPoint;
     }
     get HighestPoint() : Point {
         let highestPoint:Point = new Point(0,0);

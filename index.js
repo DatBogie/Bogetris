@@ -1190,6 +1190,12 @@ class BlockInstance extends Block {
     get Y() {
         return this._y;
     }
+    set X(x) {
+        this._x = Utils.clamp(x, 0 - this.LeftPoint.X, Game.Width - 1 + this.RightPoint.X);
+    }
+    set Y(x) {
+        this._y = Utils.clamp(x, 0 - this.HighestPoint.Y, Game.Height - 1 + this.LowestPoint.Y);
+    }
     get Width() {
         return this.CurrentShape[0].length;
     }
@@ -1261,8 +1267,8 @@ class BlockInstance extends Block {
                 .easing(!isInstantDrop ? Game.MoveEase : Game.DropEase)
                 .dynamic(true)
                 .onUpdate(data => {
-                this._x = data.X;
-                this._y = data.Y;
+                this.X = data.X;
+                this.Y = data.Y;
                 this.Draw();
             });
             var isComplete = false;
@@ -1287,7 +1293,7 @@ class BlockInstance extends Block {
                 await comp;
         }
         else {
-            [this._x, this._y] = [this.targetPos.X, this.targetPos.Y];
+            [this.X, this.Y] = [this.targetPos.X, this.targetPos.Y];
             this.Draw();
             if (isInstantDrop)
                 this.dropping = false;
@@ -1305,30 +1311,30 @@ class BlockInstance extends Block {
         if (!this.IsValidPosition(undefined, undefined, this.Shapes[newRot])) {
             for (let i = 1; i <= this.Shapes[newRot][0].length; i++) {
                 if (this.IsValidPosition((this.targetPos?.X ?? 0) - i, undefined, this.Shapes[newRot])) {
-                    this._x = this.targetPos?.X ?? 0;
+                    this.X = this.targetPos?.X ?? 0;
                     this.Rotation = newRot;
-                    this._x = (this.targetPos?.X ?? 0) - i;
+                    this.X = (this.targetPos?.X ?? 0) - i;
                     this.targetPos = new Point(this._x, this.targetPos?.Y ?? 0);
                     return success();
                 }
                 if (this.IsValidPosition((this.targetPos?.X ?? 0) + i, undefined, this.Shapes[newRot])) {
-                    this._x = this.targetPos?.X ?? 0;
+                    this.X = this.targetPos?.X ?? 0;
                     this.Rotation = newRot;
-                    this._x = (this.targetPos?.X ?? 0) + i;
+                    this.X = (this.targetPos?.X ?? 0) + i;
                     this.targetPos = new Point(this._x, this.targetPos?.Y ?? 0);
                     return success();
                 }
                 if (this.IsValidPosition(undefined, (this.targetPos?.Y ?? 0) - i, this.Shapes[newRot])) {
-                    this._y = this.targetPos?.Y ?? 0;
+                    this.Y = this.targetPos?.Y ?? 0;
                     this.Rotation = newRot;
-                    this._y = (this.targetPos?.Y ?? 0) - i;
+                    this.Y = (this.targetPos?.Y ?? 0) - i;
                     this.targetPos = new Point(this.targetPos?.X ?? 0, this._y);
                     return success();
                 }
                 if (this.IsValidPosition(undefined, (this.targetPos?.Y ?? 0) + i, this.Shapes[newRot])) {
-                    this._y = this.targetPos?.Y ?? 0;
+                    this.Y = this.targetPos?.Y ?? 0;
                     this.Rotation = newRot;
-                    this._y = (this.targetPos?.Y ?? 0) + i;
+                    this.Y = (this.targetPos?.Y ?? 0) + i;
                     this.targetPos = new Point(this.targetPos?.X ?? 0, this._y);
                     return success();
                 }
@@ -1381,7 +1387,7 @@ class BlockInstance extends Block {
         if (this.dropping || this.stamping)
             return;
         this.stamping = true;
-        [this._x, this._y] = [this.targetPos?.X ?? 0, this.targetPos?.Y ?? 0];
+        [this.X, this.Y] = [this.targetPos?.X ?? 0, this.targetPos?.Y ?? 0];
         this.Draw(Game.StaleCanvas);
         Game.WriteShape(this, this._x, this._y, this.CurrentShape);
         await Game.BlockStamped(this);
@@ -1405,6 +1411,32 @@ class BlockInstance extends Block {
             }
         }
         return y;
+    }
+    get LeftPoint() {
+        let leftPoint = new Point(this.Width, 0);
+        for (const [oY, row] of this.CurrentShape.entries()) {
+            for (const [oX, col] of row.entries()) {
+                if (col === 0)
+                    continue;
+                if (oX >= leftPoint.X)
+                    continue;
+                leftPoint = new Point(oX, oY);
+            }
+        }
+        return leftPoint;
+    }
+    get RightPoint() {
+        let rightPoint = new Point(-1, 0);
+        for (const [oY, row] of this.CurrentShape.entries()) {
+            for (const [oX, col] of row.entries()) {
+                if (col === 0)
+                    continue;
+                if (oX <= rightPoint.X)
+                    continue;
+                rightPoint = new Point(oX, oY);
+            }
+        }
+        return rightPoint;
     }
     get HighestPoint() {
         let highestPoint = new Point(0, 0);
