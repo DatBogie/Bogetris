@@ -15,106 +15,6 @@ import __sfx_negative from "./Sounds/negative.json" with { type: 'json' }; // Ro
 import __sfx_block_move from "./Sounds/block-move.json" with { type: 'json' }; // Move block/block fall
 import __sfx_hold from "./Sounds/hold.json" with { type: 'json' }; // Hold block
 
-// Wrapper for sfxr sounds implementing dynamic volume via reconstruction
-class Sound {
-    constructor(json:Record<string,any>) {
-        if (__sfx_is_loaded) this.sound = sfxr.toAudio(json); // Only create <audio> if doing so wouldn't error
-        this.json = json; // Store audio parameters
-        this.sound_vol = json.sound_vol; // Store original volume
-    }
-    private sound:jsfxrSound|undefined;
-    private json:Record<string,any>;
-    private vol:number = 1;
-    private readonly sound_vol:number;
-    private get sfxrAudio() : jsfxrSound {
-        return sfxr.toAudio(this.json); // Construct new sfxr sound based on stored audio parameters
-    }
-    play() : void {
-        if (!__sfx_is_loaded) return; // Only try to play if <audio> should be allowed to initialize
-        const vol:number = Game.AudioVol/100; // Convert from %/100 -> %/1
-        if (vol <= 0) return; // Don't run any tasks if the audio is muted
-        this.volume = vol; // Reconstruct sound to incorporate new volume
-        if (!this.sound) this.sound = this.sfxrAudio; // Initialize <audio> in case it hasn't been already
-        this.sound.play();
-    }
-    get volume() : number {
-        return this.vol;
-    }
-    set volume(vol:number) {
-        if (this.vol === vol) return; // Skip if already at `vol`
-        this.vol = vol;
-        this.json.sound_vol = this.sound_vol*vol; // Update sound_vol parameter relative to its initial value
-        this.sound = this.sfxrAudio; // Reconstruct with the new sound_vol parameter
-    }
-}
-
-// Declare Sounds
-var SFX = {
-    click: new Sound(__sfx_click),
-    clear: new Sound(__sfx_clear),
-    gameover: new Sound(__sfx_gameover),
-    levelup: new Sound(__sfx_levelup),
-    harddrop: new Sound(__sfx_harddrop),
-    newbest: new Sound(__sfx_newbest),
-    blockrotate: new Sound(__sfx_block_rotate),
-    negative: new Sound(__sfx_negative),
-    blockMove: new Sound(__sfx_block_move),
-    hold: new Sound(__sfx_hold)
-};
-var __sfx_is_loaded:boolean = false; // Variable tracking whether or not `clickWar` has been clicked and if sfxr SFX can be played by proxy
-
-// 'Click to Enable Audio' prompt (needed to make sfxr not error, since <audio>s need a proper *mouse* input before working)
-var clickWar:HTMLElement = document.getElementById("click-req") as HTMLElement; // as `HTMLElement` since this will *always* exist until it's manually deleted *later* (same reason for similar future syntax)
-clickWar.addEventListener("click",()=>{
-    updateSelectionButtons();
-    clickWar.style.pointerEvents = "none !important"; // Allow inputs to be passed through to the menu
-    clickWar.style.opacity = "0"; // Smoothly fade out click warning (thanks to the CSS `transition` property)
-    setTimeout(()=>{
-        clickWar.remove(); // Delete click warning.
-        clickWar = undefined as unknown as HTMLElement; // Get around deleting `clickWar` after explicitly declaring it as always an `HTMLElement`. Otherwise, lines 69–70 would need to check if `clickWar` exists before executing
-    },600); // 600ms transition duration defined in file://./style.css
-});
-function loadSFX() : void {
-    __sfx_is_loaded = true;
-    window.removeEventListener("click",loadSFX); // Prevent this function from being run again on the next click
-}
-window.addEventListener("click",loadSFX); // Bind `loadSFX` to clicking anywhere on-screen (not just on `clickWar`)
-
-var PauseMenuSel:number = 0; // Index of the currently selected menu element
-var PauseBtns:HTMLElement[] = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable")); // Array of the currently selectable menu elements
-
-// Refresh `PauseBtns` based on the currently focused menu's selectable elements, optionally taking the selected collapsable menu as a parameter
-function updateSelectionButtons(detailsSel?:HTMLDetailsElement) : void {
-    const modal:Element|null = document.querySelector(".modal.active"); // Find currently focused modal
-    const btns:HTMLElement[] = Array.from(modal? modal.querySelectorAll(".modal-content .keyboard-selectable") : document.querySelectorAll("#pause-btns > .keyboard-selectable")); // Get selectable elements if it's a modal, else get selectable pause buttons since it's the main pause menu and therefore uses a different layout scheme because I made it much earlier on in development (and if it ain't broke, don't fix it)
-    const tBtns:HTMLElement[] = [];
-    // Filter out any explicitly hidden elements and elements inside of a collapsed collapsable section
-    for (const btn of btns.values()) {
-        let details:HTMLDetailsElement = btn.parentElement?.parentElement?.parentElement?.parentElement as HTMLDetailsElement; // Hacky way to get the parent details menu (always works under the exact layout present in this project, though*)
-        if (!details || !(details instanceof HTMLDetailsElement)) // *except the times where we have to go up an additional element =)
-            details = btn.parentElement?.parentElement?.parentElement?.parentElement?.parentElement as HTMLDetailsElement;
-        if (!btn.classList.contains("hidden") && (!details || !(details instanceof HTMLDetailsElement) || details.open)) {
-            tBtns.push(btn);
-        }
-    }
-    PauseMenuSel = !detailsSel? 0 : tBtns.indexOf(detailsSel.querySelector("summary") ?? detailsSel) ?? 0; // If a collapsable menu wasn't passed, select the first element, else select the same element as was previously selected before collapsing/expanding the menu
-    PauseBtns = tBtns;
-    focusButton();
-}
-// Focus currently selected element
-function focusButton() : void {
-    setTimeout(()=>{
-        PauseBtns[PauseMenuSel]?.focus();
-        SFX.click.play();
-    },1); // Delay 1ms to prevent horrible bugs (race conditions)
-}
-
-// Quickly shrink and restore an element to hide ugly, instant updates (like the width changes of a `.canvas-box` when its descendants' text gets too long)
-function bounceAnim(el:HTMLElement) : void {
-    if (!Game.Anims) return; // Respect global animation preferences (since it's more distracting than most other CSS animations)
-    el.animate([{ scale:.925 },{ scale:1 }],{easing:"ease",duration:100}); // Initial scale: 92.5%, final scale: 100%, with 'ease' over 100ms
-}
-
 // Both below attr functions made purely to avoid TypeScript type indexing "issues"
 function getAttr(instance:any,attr:string) : any {
     return instance[attr];
@@ -227,6 +127,7 @@ class FeedtapeArray<T> {
 
 // Organize Enum and Enum-like classes via an 'Enum' prefix
 namespace Enum {
+    export enum AudioType { Game, Menu }
     export type bufferData = {
         value:any,
         el:HTMLSelectElement|HTMLInputElement,
@@ -252,6 +153,108 @@ namespace Enum {
     export function OperationFromString(op:string) : Operation { // Return enum operation from shorthand (if applicable, else returns addition)
         return ops[op] ?? Operation.Addition;
     }
+}
+
+// Wrapper for sfxr sounds implementing dynamic volume via reconstruction
+class Sound {
+    constructor(json:Record<string,any>,type:Enum.AudioType=Enum.AudioType.Game) {
+        if (__sfx_is_loaded) this.sound = sfxr.toAudio(json); // Only create <audio> if doing so wouldn't error
+        this.json = json; // Store audio parameters
+        this.sound_vol = json.sound_vol; // Store original volume
+        this.type = type === Enum.AudioType.Game? "Game" : "Menu";
+    }
+    private sound:jsfxrSound|undefined;
+    private json:Record<string,any>;
+    private vol:number = 1;
+    private type:string;
+    private readonly sound_vol:number;
+    private get sfxrAudio() : jsfxrSound {
+        return sfxr.toAudio(this.json); // Construct new sfxr sound based on stored audio parameters
+    }
+    play() : void {
+        if (!__sfx_is_loaded) return; // Only try to play if <audio> should be allowed to initialize
+        const vol:number = ((SettingsBuffer.get("AudioVol")?.value ?? Game.AudioVol)/100) * (SettingsBuffer.get(`${this.type}Vol`)?.value ?? (getAttr(Game,`${this.type}Vol`))/100); // Convert from %/100 -> %/1 relative to categorical volumes
+        if (vol <= 0) return; // Don't run any tasks if the audio is muted
+        this.volume = vol; // Reconstruct sound to incorporate new volume
+        if (!this.sound) this.sound = this.sfxrAudio; // Initialize <audio> in case it hasn't been already
+        this.sound.play();
+    }
+    get volume() : number {
+        return this.vol;
+    }
+    set volume(vol:number) {
+        if (this.vol === vol) return; // Skip if already at `vol`
+        this.vol = vol;
+        this.json.sound_vol = this.sound_vol*vol; // Update sound_vol parameter relative to its initial value
+        this.sound = this.sfxrAudio; // Reconstruct with the new sound_vol parameter
+    }
+}
+
+// Declare Sounds
+var SFX = {
+    click: new Sound(__sfx_click,Enum.AudioType.Menu),
+    clear: new Sound(__sfx_clear),
+    gameover: new Sound(__sfx_gameover),
+    levelup: new Sound(__sfx_levelup),
+    harddrop: new Sound(__sfx_harddrop),
+    newbest: new Sound(__sfx_newbest),
+    blockrotate: new Sound(__sfx_block_rotate),
+    negative: new Sound(__sfx_negative),
+    blockMove: new Sound(__sfx_block_move),
+    hold: new Sound(__sfx_hold)
+};
+var __sfx_is_loaded:boolean = false; // Variable tracking whether or not `clickWar` has been clicked and if sfxr SFX can be played by proxy
+
+// 'Click to Enable Audio' prompt (needed to make sfxr not error, since <audio>s need a proper *mouse* input before working)
+var clickWar:HTMLElement = document.getElementById("click-req") as HTMLElement; // as `HTMLElement` since this will *always* exist until it's manually deleted *later* (same reason for similar future syntax)
+clickWar.addEventListener("click",()=>{
+    updateSelectionButtons();
+    clickWar.style.pointerEvents = "none !important"; // Allow inputs to be passed through to the menu
+    clickWar.style.opacity = "0"; // Smoothly fade out click warning (thanks to the CSS `transition` property)
+    setTimeout(()=>{
+        clickWar.remove(); // Delete click warning.
+        clickWar = undefined as unknown as HTMLElement; // Get around deleting `clickWar` after explicitly declaring it as always an `HTMLElement`. Otherwise, lines 69–70 would need to check if `clickWar` exists before executing
+    },600); // 600ms transition duration defined in file://./style.css
+});
+function loadSFX() : void {
+    __sfx_is_loaded = true;
+    window.removeEventListener("click",loadSFX); // Prevent this function from being run again on the next click
+}
+window.addEventListener("click",loadSFX); // Bind `loadSFX` to clicking anywhere on-screen (not just on `clickWar`)
+
+var PauseMenuSel:number = 0; // Index of the currently selected menu element
+var PauseBtns:HTMLElement[] = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable")); // Array of the currently selectable menu elements
+
+// Refresh `PauseBtns` based on the currently focused menu's selectable elements, optionally taking the selected collapsable menu as a parameter
+function updateSelectionButtons(detailsSel?:HTMLDetailsElement) : void {
+    const modal:Element|null = document.querySelector(".modal.active"); // Find currently focused modal
+    const btns:HTMLElement[] = Array.from(modal? modal.querySelectorAll(".modal-content .keyboard-selectable") : document.querySelectorAll("#pause-btns > .keyboard-selectable")); // Get selectable elements if it's a modal, else get selectable pause buttons since it's the main pause menu and therefore uses a different layout scheme because I made it much earlier on in development (and if it ain't broke, don't fix it)
+    const tBtns:HTMLElement[] = [];
+    // Filter out any explicitly hidden elements and elements inside of a collapsed collapsable section
+    for (const btn of btns.values()) {
+        let details:HTMLDetailsElement = btn.parentElement?.parentElement?.parentElement?.parentElement as HTMLDetailsElement; // Hacky way to get the parent details menu (always works under the exact layout present in this project, though*)
+        if (!details || !(details instanceof HTMLDetailsElement)) // *except the times where we have to go up an additional element =)
+            details = btn.parentElement?.parentElement?.parentElement?.parentElement?.parentElement as HTMLDetailsElement;
+        if (!btn.classList.contains("hidden") && (!details || !(details instanceof HTMLDetailsElement) || details.open)) {
+            tBtns.push(btn);
+        }
+    }
+    PauseMenuSel = !detailsSel? 0 : tBtns.indexOf(detailsSel.querySelector("summary") ?? detailsSel) ?? 0; // If a collapsable menu wasn't passed, select the first element, else select the same element as was previously selected before collapsing/expanding the menu
+    PauseBtns = tBtns;
+    focusButton();
+}
+// Focus currently selected element
+function focusButton() : void {
+    setTimeout(()=>{
+        PauseBtns[PauseMenuSel]?.focus();
+        SFX.click.play();
+    },1); // Delay 1ms to prevent horrible bugs (race conditions)
+}
+
+// Quickly shrink and restore an element to hide ugly, instant updates (like the width changes of a `.canvas-box` when its descendants' text gets too long)
+function bounceAnim(el:HTMLElement) : void {
+    if (!Game.Anims) return; // Respect global animation preferences (since it's more distracting than most other CSS animations)
+    el.animate([{ scale:.925 },{ scale:1 }],{easing:"ease",duration:100}); // Initial scale: 92.5%, final scale: 100%, with 'ease' over 100ms
 }
 
 // Organize utility functions via a 'Utils' prefix
@@ -525,10 +528,15 @@ class Game {
     static MoveKeyRepeatInterval:number = 75;
     static MoveKeyRepeatDelay:number = 125;
     static AudioVol:number = 100;
+    static GameVol:number = 100;
+    static MenuVol:number = 100;
     static DisableGrid:boolean = false; // Whether the grid should be drawn
+    static get CompAnimMoveTime() : number {
+        return !Game.DynamicMoveTime || !Game.Anims? Game.AnimMoveTime : (Game.Speed <= Game.AnimMoveTime*1.25? (Game.Speed <= 40*1.25? (Game.Speed <= 20*1.25? 0 : 20) : 40) : Game.AnimMoveTime);
+    }
     static AnimMoveTime:number = 60; // Animation duration for the block being moved
     static AnimDropTime:number = Game.AnimMoveTime*2; // Animation duration for the block being hard dropped
-    static DynamicMoveTime:boolean = false; // Change animation move duration based on current speed
+    static DynamicMoveTime:boolean = true; // Change animation move duration based on current speed
     static AnimClearTime:number = Math.trunc((Game.AnimMoveTime/2)*10); // Animation duration for a line being cleared
     static FixedAnimClearTime:boolean = true; // Whether `AnimClearTime` should be applied such that clearing one line takes `AnimClearTime` ms, or whether it should take `AnimClearTime`ms per block (meaning at higher game widths it'd take longer and vice versa)
     static MoveEaseStyle:Enum.easeStyle = "Linear"; // Easing function
@@ -972,6 +980,8 @@ const Settings = { // All settings keys/attribute names of `Game` mapped to thei
     MoveKeyRepeatDelay: settingsWin?.querySelector("#settings-key-repeat-move-delay"),
     MoveKeyRepeatInterval: settingsWin?.querySelector("#settings-key-repeat-move-int"),
     AudioVol: settingsWin?.querySelector("#settings-audio-vol"),
+    GameVol: settingsWin?.querySelector("#settings-game-vol"),
+    MenuVol: settingsWin?.querySelector("#settings-menu-vol"),
     DisableGrid: settingsWin?.querySelector("#settings-grid-disabled"),
     SpeedMul: settingsWin?.querySelector("#settings-game-speed-mul"),
     Anims: settingsWin?.querySelector("#settings-anims"),
@@ -1349,7 +1359,7 @@ class BlockInstance extends Block {
             if (this.tween && this.tween.isPlaying()) // Stop stale tween
                 this.tween.stop();
             this.tween = new Tween(tData.s) // Create/setup new team
-            .to(tData.e,!isInstantDrop? Game.AnimMoveTime : Game.AnimDropTime)
+            .to(tData.e,!isInstantDrop? Game.CompAnimMoveTime : Game.AnimDropTime)
             .easing(!isInstantDrop? Game.MoveEase : Game.DropEase)
             .dynamic(true)
             .onUpdate(data=>{
@@ -1783,6 +1793,7 @@ async function handleKeypress(event:KeyboardEvent) : Promise<void> {
                         const val:HTMLInputElement = (PauseBtns[PauseMenuSel] as HTMLInputElement);
                         val.valueAsNumber = stepRange(val,-1);
                         val.dispatchEvent(new Event("change"));
+                        SFX.click.play();
                         return event.preventDefault();
                     }
                 }
@@ -1799,6 +1810,7 @@ async function handleKeypress(event:KeyboardEvent) : Promise<void> {
                         const val:HTMLInputElement = (PauseBtns[PauseMenuSel] as HTMLInputElement);
                         val.valueAsNumber = stepRange(val);
                         val.dispatchEvent(new Event("change"));
+                        SFX.click.play();
                         return event.preventDefault();
                     }
                 }

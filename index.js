@@ -11,99 +11,6 @@ import __sfx_block_rotate from "./Sounds/block-rotate.json" with { type: 'json' 
 import __sfx_negative from "./Sounds/negative.json" with { type: 'json' };
 import __sfx_block_move from "./Sounds/block-move.json" with { type: 'json' };
 import __sfx_hold from "./Sounds/hold.json" with { type: 'json' };
-class Sound {
-    constructor(json) {
-        if (__sfx_is_loaded)
-            this.sound = sfxr.toAudio(json);
-        this.json = json;
-        this.sound_vol = json.sound_vol;
-    }
-    sound;
-    json;
-    vol = 1;
-    sound_vol;
-    get sfxrAudio() {
-        return sfxr.toAudio(this.json);
-    }
-    play() {
-        if (!__sfx_is_loaded)
-            return;
-        const vol = Game.AudioVol / 100;
-        if (vol <= 0)
-            return;
-        this.volume = vol;
-        if (!this.sound)
-            this.sound = this.sfxrAudio;
-        this.sound.play();
-    }
-    get volume() {
-        return this.vol;
-    }
-    set volume(vol) {
-        if (this.vol === vol)
-            return;
-        this.vol = vol;
-        this.json.sound_vol = this.sound_vol * vol;
-        this.sound = this.sfxrAudio;
-    }
-}
-var SFX = {
-    click: new Sound(__sfx_click),
-    clear: new Sound(__sfx_clear),
-    gameover: new Sound(__sfx_gameover),
-    levelup: new Sound(__sfx_levelup),
-    harddrop: new Sound(__sfx_harddrop),
-    newbest: new Sound(__sfx_newbest),
-    blockrotate: new Sound(__sfx_block_rotate),
-    negative: new Sound(__sfx_negative),
-    blockMove: new Sound(__sfx_block_move),
-    hold: new Sound(__sfx_hold)
-};
-var __sfx_is_loaded = false;
-var clickWar = document.getElementById("click-req");
-clickWar.addEventListener("click", () => {
-    updateSelectionButtons();
-    clickWar.style.pointerEvents = "none !important";
-    clickWar.style.opacity = "0";
-    setTimeout(() => {
-        clickWar.remove();
-        clickWar = undefined;
-    }, 600);
-});
-function loadSFX() {
-    __sfx_is_loaded = true;
-    window.removeEventListener("click", loadSFX);
-}
-window.addEventListener("click", loadSFX);
-var PauseMenuSel = 0;
-var PauseBtns = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
-function updateSelectionButtons(detailsSel) {
-    const modal = document.querySelector(".modal.active");
-    const btns = Array.from(modal ? modal.querySelectorAll(".modal-content .keyboard-selectable") : document.querySelectorAll("#pause-btns > .keyboard-selectable"));
-    const tBtns = [];
-    for (const btn of btns.values()) {
-        let details = btn.parentElement?.parentElement?.parentElement?.parentElement;
-        if (!details || !(details instanceof HTMLDetailsElement))
-            details = btn.parentElement?.parentElement?.parentElement?.parentElement?.parentElement;
-        if (!btn.classList.contains("hidden") && (!details || !(details instanceof HTMLDetailsElement) || details.open)) {
-            tBtns.push(btn);
-        }
-    }
-    PauseMenuSel = !detailsSel ? 0 : tBtns.indexOf(detailsSel.querySelector("summary") ?? detailsSel) ?? 0;
-    PauseBtns = tBtns;
-    focusButton();
-}
-function focusButton() {
-    setTimeout(() => {
-        PauseBtns[PauseMenuSel]?.focus();
-        SFX.click.play();
-    }, 1);
-}
-function bounceAnim(el) {
-    if (!Game.Anims)
-        return;
-    el.animate([{ scale: .925 }, { scale: 1 }], { easing: "ease", duration: 100 });
-}
 function getAttr(instance, attr) {
     return instance[attr];
 }
@@ -203,6 +110,11 @@ class FeedtapeArray {
 }
 var Enum;
 (function (Enum) {
+    let AudioType;
+    (function (AudioType) {
+        AudioType[AudioType["Game"] = 0] = "Game";
+        AudioType[AudioType["Menu"] = 1] = "Menu";
+    })(AudioType = Enum.AudioType || (Enum.AudioType = {}));
     class BaseScores {
         static Soft = 1;
         static Hard = 2;
@@ -234,6 +146,101 @@ var Enum;
     }
     Enum.OperationFromString = OperationFromString;
 })(Enum || (Enum = {}));
+class Sound {
+    constructor(json, type = Enum.AudioType.Game) {
+        if (__sfx_is_loaded)
+            this.sound = sfxr.toAudio(json);
+        this.json = json;
+        this.sound_vol = json.sound_vol;
+        this.type = type === Enum.AudioType.Game ? "Game" : "Menu";
+    }
+    sound;
+    json;
+    vol = 1;
+    type;
+    sound_vol;
+    get sfxrAudio() {
+        return sfxr.toAudio(this.json);
+    }
+    play() {
+        if (!__sfx_is_loaded)
+            return;
+        const vol = ((SettingsBuffer.get("AudioVol")?.value ?? Game.AudioVol) / 100) * (SettingsBuffer.get(`${this.type}Vol`)?.value ?? (getAttr(Game, `${this.type}Vol`)) / 100);
+        if (vol <= 0)
+            return;
+        this.volume = vol;
+        if (!this.sound)
+            this.sound = this.sfxrAudio;
+        this.sound.play();
+    }
+    get volume() {
+        return this.vol;
+    }
+    set volume(vol) {
+        if (this.vol === vol)
+            return;
+        this.vol = vol;
+        this.json.sound_vol = this.sound_vol * vol;
+        this.sound = this.sfxrAudio;
+    }
+}
+var SFX = {
+    click: new Sound(__sfx_click, Enum.AudioType.Menu),
+    clear: new Sound(__sfx_clear),
+    gameover: new Sound(__sfx_gameover),
+    levelup: new Sound(__sfx_levelup),
+    harddrop: new Sound(__sfx_harddrop),
+    newbest: new Sound(__sfx_newbest),
+    blockrotate: new Sound(__sfx_block_rotate),
+    negative: new Sound(__sfx_negative),
+    blockMove: new Sound(__sfx_block_move),
+    hold: new Sound(__sfx_hold)
+};
+var __sfx_is_loaded = false;
+var clickWar = document.getElementById("click-req");
+clickWar.addEventListener("click", () => {
+    updateSelectionButtons();
+    clickWar.style.pointerEvents = "none !important";
+    clickWar.style.opacity = "0";
+    setTimeout(() => {
+        clickWar.remove();
+        clickWar = undefined;
+    }, 600);
+});
+function loadSFX() {
+    __sfx_is_loaded = true;
+    window.removeEventListener("click", loadSFX);
+}
+window.addEventListener("click", loadSFX);
+var PauseMenuSel = 0;
+var PauseBtns = Array.from(document.querySelectorAll("#pause-btns > .keyboard-selectable"));
+function updateSelectionButtons(detailsSel) {
+    const modal = document.querySelector(".modal.active");
+    const btns = Array.from(modal ? modal.querySelectorAll(".modal-content .keyboard-selectable") : document.querySelectorAll("#pause-btns > .keyboard-selectable"));
+    const tBtns = [];
+    for (const btn of btns.values()) {
+        let details = btn.parentElement?.parentElement?.parentElement?.parentElement;
+        if (!details || !(details instanceof HTMLDetailsElement))
+            details = btn.parentElement?.parentElement?.parentElement?.parentElement?.parentElement;
+        if (!btn.classList.contains("hidden") && (!details || !(details instanceof HTMLDetailsElement) || details.open)) {
+            tBtns.push(btn);
+        }
+    }
+    PauseMenuSel = !detailsSel ? 0 : tBtns.indexOf(detailsSel.querySelector("summary") ?? detailsSel) ?? 0;
+    PauseBtns = tBtns;
+    focusButton();
+}
+function focusButton() {
+    setTimeout(() => {
+        PauseBtns[PauseMenuSel]?.focus();
+        SFX.click.play();
+    }, 1);
+}
+function bounceAnim(el) {
+    if (!Game.Anims)
+        return;
+    el.animate([{ scale: .925 }, { scale: 1 }], { easing: "ease", duration: 100 });
+}
 class Utils {
     static RoundNumber(x, d) {
         return Math.round(x * (10 ** d)) / (10 ** d);
@@ -478,9 +485,15 @@ class Game {
     static MoveKeyRepeatInterval = 75;
     static MoveKeyRepeatDelay = 125;
     static AudioVol = 100;
+    static GameVol = 100;
+    static MenuVol = 100;
     static DisableGrid = false;
+    static get CompAnimMoveTime() {
+        return !Game.DynamicMoveTime || !Game.Anims ? Game.AnimMoveTime : (Game.Speed <= Game.AnimMoveTime * 1.25 ? (Game.Speed <= 40 * 1.25 ? (Game.Speed <= 20 * 1.25 ? 0 : 20) : 40) : Game.AnimMoveTime);
+    }
     static AnimMoveTime = 60;
     static AnimDropTime = Game.AnimMoveTime * 2;
+    static DynamicMoveTime = true;
     static AnimClearTime = Math.trunc((Game.AnimMoveTime / 2) * 10);
     static FixedAnimClearTime = true;
     static MoveEaseStyle = "Linear";
@@ -916,11 +929,14 @@ const Settings = {
     MoveKeyRepeatDelay: settingsWin?.querySelector("#settings-key-repeat-move-delay"),
     MoveKeyRepeatInterval: settingsWin?.querySelector("#settings-key-repeat-move-int"),
     AudioVol: settingsWin?.querySelector("#settings-audio-vol"),
+    GameVol: settingsWin?.querySelector("#settings-game-vol"),
+    MenuVol: settingsWin?.querySelector("#settings-menu-vol"),
     DisableGrid: settingsWin?.querySelector("#settings-grid-disabled"),
     SpeedMul: settingsWin?.querySelector("#settings-game-speed-mul"),
     Anims: settingsWin?.querySelector("#settings-anims"),
     AnimMoveTime: settingsWin?.querySelector("#settings-anim-move-time"),
     AnimDropTime: settingsWin?.querySelector("#settings-anim-drop-time"),
+    DynamicMoveTime: settingsWin?.querySelector("#settings-anim-dynamic-move-time"),
     AnimClearTime: settingsWin?.querySelector("#settings-anim-clear-time"),
     FixedAnimClearTime: settingsWin?.querySelector("#settings-anim-clear-time-fixed"),
     GhostBlockOpacity: settingsWin?.querySelector("#settings-ghost-opacity"),
@@ -1190,11 +1206,17 @@ class BlockInstance extends Block {
     get Y() {
         return this._y;
     }
+    clampX(x) {
+        return Utils.clamp(x, 0 - this.LeftPoint.X, Game.Width - 1 + this.RightPoint.X);
+    }
+    clampY(x) {
+        return Utils.clamp(x, 0 - this.HighestPoint.Y, Game.Height - 1 + this.LowestPoint.Y);
+    }
     set X(x) {
-        this._x = Utils.clamp(x, 0 - this.LeftPoint.X, Game.Width - 1 + this.RightPoint.X);
+        this._x = this.clampX(x);
     }
     set Y(x) {
-        this._y = Utils.clamp(x, 0 - this.HighestPoint.Y, Game.Height - 1 + this.LowestPoint.Y);
+        this._y = this.clampY(x);
     }
     get Width() {
         return this.CurrentShape[0].length;
@@ -1224,6 +1246,9 @@ class BlockInstance extends Block {
     targetPos;
     get TargetPos() {
         return this.targetPos;
+    }
+    set TargetPos(x) {
+        this.targetPos = new Point(this.clampX(x.X), this.clampY(x.Y));
     }
     dropping = false;
     isFake = false;
@@ -1263,7 +1288,7 @@ class BlockInstance extends Block {
             if (this.tween && this.tween.isPlaying())
                 this.tween.stop();
             this.tween = new Tween(tData.s)
-                .to(tData.e, !isInstantDrop ? Game.AnimMoveTime : Game.AnimDropTime)
+                .to(tData.e, !isInstantDrop ? Game.CompAnimMoveTime : Game.AnimDropTime)
                 .easing(!isInstantDrop ? Game.MoveEase : Game.DropEase)
                 .dynamic(true)
                 .onUpdate(data => {
@@ -1674,6 +1699,7 @@ async function handleKeypress(event) {
                         const val = PauseBtns[PauseMenuSel];
                         val.valueAsNumber = stepRange(val, -1);
                         val.dispatchEvent(new Event("change"));
+                        SFX.click.play();
                         return event.preventDefault();
                     }
                 }
@@ -1691,6 +1717,7 @@ async function handleKeypress(event) {
                         const val = PauseBtns[PauseMenuSel];
                         val.valueAsNumber = stepRange(val);
                         val.dispatchEvent(new Event("change"));
+                        SFX.click.play();
                         return event.preventDefault();
                     }
                 }

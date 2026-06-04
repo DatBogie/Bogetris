@@ -84,7 +84,9 @@
                             <summary class="center keyboard-selectable">Audio</summary>
                             <li class="details-content">
                                 <ul class="layout left-align">
-                                    <li><span>Audio Volume: </span><input id="settings-audio-vol" type="range" min="0" max="100" step="5" class="keyboard-selectable int"><span id="settings-audio-vol-label" style="margin-left: 15px;"></span><span>&percnt;</span></li>
+                                    <li><span>Master Volume: </span><input id="settings-audio-vol" type="range" min="0" max="100" step="5" class="keyboard-selectable int"><span id="settings-audio-vol-label" style="margin-left: 15px;"></span><span>&percnt;</span></li>
+                                    <li><span>Game Volume: </span><input id="settings-game-vol" type="range" min="0" max="100" step="5" class="keyboard-selectable int"><span id="settings-game-vol-label" style="margin-left: 15px;"></span><span>&percnt;</span></li>
+                                    <li><span>Menu Volume: </span><input id="settings-menu-vol" type="range" min="0" max="100" step="5" class="keyboard-selectable int"><span id="settings-menu-vol-label" style="margin-left: 15px;"></span><span>&percnt;</span></li>
                                 </ul>
                             </li>
                         </details>
@@ -95,6 +97,7 @@
                                     <li><span>Animations: </span><input id="settings-anims" type="checkbox" autocomplete="off" class="keyboard-selectable"></li>
                                     <li><span>Animate Ghost Block: </span><input id="settings-ghost-anims" type="checkbox" autocomplete="off" class="keyboard-selectable"></li>
                                     <li><span>Animation Move Duration: </span><input id="settings-anim-move-time" type="number" class="int keyboard-selectable" min="0" max="1000"><span>ms</span></li>
+                                    <li><span>Dynamic Move Animation Duration: </span><input id="settings-anim-dynamic-move-time" type="checkbox" autocomplete="off" class="keyboard-selectable"></li>
                                     <li><span>Move Block Ease: </span><span><select id="settings-ease-style-move" class="keyboard-selectable ease">
                                         <option>Linear</option>
                                         <option>Sinusoidal</option>
