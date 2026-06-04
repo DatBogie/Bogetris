@@ -4,9 +4,10 @@ APCSP 2026 Create Task Project
 *Gameplay heavily inspired by The Tetris Company's [Tetris](https://tetris.com)®*
 
 **Where to Play**  
-[datbogie.org](https://datbogie.org/Bogetris) \| [sites.google.com](https://sites.google.com/view/datbogie/github-pages/bogetris)<strong style="color: var(--red);">\*</strong>
+[datbogie.org](https://datbogie.org/Bogetris) \| [sites.google.com](https://sites.google.com/view/datbogie/github-pages/bogetris)<strong style="color: var(--red);">\*</strong> \| [Bookmarklet Code](https://gist.githubusercontent.com/DatBogie/65230d5a2f70b77ff328d6b1a0d73124/raw/34e918d491d766f9ebc26e74337b7ba7c0101095/bogetris-launcher.js)<strong style="color: var(--red);">\*\*</strong>
 
-<small style="color: var(--red);">\*</small><small style="color: var(--subtext0);">_Google Sites allows Bogetris to be played unblocked, **without saving**._</small>
+<small style="color: var(--red);">\*</small><small style="color: var(--subtext0);">_Google Sites allows Bogetris to be played unblocked, **without saving**._</small>  
+<small style="color: var(--red);">\*\*</small><small style="color: var(--subtext0);">_Create a new bookmark and set the location to the code from the above link; clicking the new bookmark should hopefully allow playing Bogetris unblocked **without saving**._</small>
 
 ## License
 

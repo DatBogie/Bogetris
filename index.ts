@@ -528,6 +528,7 @@ class Game {
     static DisableGrid:boolean = false; // Whether the grid should be drawn
     static AnimMoveTime:number = 60; // Animation duration for the block being moved
     static AnimDropTime:number = Game.AnimMoveTime*2; // Animation duration for the block being hard dropped
+    static DynamicMoveTime:boolean = false; // Change animation move duration based on current speed
     static AnimClearTime:number = Math.trunc((Game.AnimMoveTime/2)*10); // Animation duration for a line being cleared
     static FixedAnimClearTime:boolean = true; // Whether `AnimClearTime` should be applied such that clearing one line takes `AnimClearTime` ms, or whether it should take `AnimClearTime`ms per block (meaning at higher game widths it'd take longer and vice versa)
     static MoveEaseStyle:Enum.easeStyle = "Linear"; // Easing function
@@ -976,6 +977,7 @@ const Settings = { // All settings keys/attribute names of `Game` mapped to thei
     Anims: settingsWin?.querySelector("#settings-anims"),
     AnimMoveTime: settingsWin?.querySelector("#settings-anim-move-time"),
     AnimDropTime: settingsWin?.querySelector("#settings-anim-drop-time"),
+    DynamicMoveTime: settingsWin?.querySelector("#settings-anim-dynamic-move-time"),
     AnimClearTime: settingsWin?.querySelector("#settings-anim-clear-time"),
     FixedAnimClearTime: settingsWin?.querySelector("#settings-anim-clear-time-fixed"),
     GhostBlockOpacity: settingsWin?.querySelector("#settings-ghost-opacity"),
