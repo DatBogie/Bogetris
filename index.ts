@@ -2114,6 +2114,8 @@ function resetKeybindStyle(el:HTMLButtonElement) : void {
         if (event.key === "Escape") {
             el.textContent = translateKey(el.dataset.key ?? "");
             resetKeybindStyle(el);
+            ignoreInput = true;
+            document.removeEventListener("keyup",click);
             return;
         }
         el.dataset.key = event.key;
